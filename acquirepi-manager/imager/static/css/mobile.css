@@ -1,0 +1,362 @@
+/* Mobile-First Responsive Styles for acquirepi Manager */
+
+/* Fix dropdown menus being clipped by overflow:hidden */
+.navbar .dropdown-menu.show {
+    position: fixed !important;
+    top: 48px !important;
+    right: 10px !important;
+    left: auto !important;
+    z-index: 1050 !important;
+}
+
+/* Fix horizontal scrolling - CRITICAL */
+body, html {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+}
+
+.container, .container-fluid, .row {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+main {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+}
+
+/* Navbar Mobile Fixes */
+@media (max-width: 767px) {
+    .navbar {
+        flex-wrap: nowrap !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+    }
+
+    .navbar .container-fluid {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        max-width: 100vw;
+        flex-wrap: nowrap;
+        overflow-x: hidden;
+    }
+
+    .navbar-brand {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .navbar-toggler {
+        flex-shrink: 0;
+    }
+
+    /* Ensure sidebar doesn't cause horizontal scroll */
+    .sidebar {
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+    }
+}
+
+/* Global Mobile Optimizations */
+@media (max-width: 768px) {
+    /* Reduce padding on mobile */
+    .container-fluid {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    /* Prevent any element from causing overflow */
+    .card, .table-responsive, .chart-container {
+        max-width: 100% !important;
+        overflow-x: auto !important;
+    }
+
+    /* Ensure images don't overflow */
+    img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    /* Fix wide content */
+    pre, code {
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        word-wrap: break-word !important;
+    }
+
+    /* Smaller headings on mobile */
+    h1 {
+        font-size: 1.75rem;
+        word-wrap: break-word;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+        word-wrap: break-word;
+    }
+
+    h5, h6 {
+        font-size: 1rem;
+        word-wrap: break-word;
+    }
+
+    /* Compact cards */
+    .card {
+        margin-bottom: 1rem;
+        max-width: 100% !important;
+    }
+
+    .card-body {
+        padding: 0.75rem;
+        overflow-x: auto;
+    }
+
+    /* Smaller buttons */
+    .btn {
+        font-size: 0.875rem;
+        padding: 0.375rem 0.75rem;
+    }
+
+    .btn-sm {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* Fix Bootstrap row negative margins */
+    .row {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .row > * {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+
+    /* Compact tables */
+    .table-sm td,
+    .table-sm th {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.875rem;
+    }
+
+    /* Hide less important table columns */
+    .table .mobile-hide {
+        display: none !important;
+    }
+
+    /* Ensure table containers don't overflow */
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    /* Stack form elements */
+    .form-row .col {
+        margin-bottom: 0.75rem;
+    }
+
+    /* Smaller badges */
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.25em 0.5em;
+    }
+
+    /* Compact alerts */
+    .alert {
+        padding: 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    /* Reduce spacing in lists */
+    .list-group-item {
+        padding: 0.75rem;
+    }
+
+    /* Make modals full screen on mobile */
+    .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+    }
+
+    .modal-content {
+        border-radius: 0;
+        min-height: 100vh;
+    }
+}
+
+/* Very Small Screens (phones in portrait) */
+@media (max-width: 576px) {
+    /* Even smaller text */
+    body {
+        font-size: 14px;
+    }
+
+    /* Stack metric cards in 2 columns */
+    .metric-card .metric-value {
+        font-size: 1.5rem !important;
+    }
+
+    .metric-card .card-body {
+        padding: 0.5rem !important;
+    }
+
+    /* Full-width buttons on very small screens */
+    .btn-toolbar .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Reduce chart heights on mobile */
+    .chart-container {
+        height: 200px !important;
+    }
+
+    /* Smaller progress bars */
+    .progress {
+        height: 18px !important;
+        font-size: 0.75rem;
+    }
+}
+
+/* Tablet-specific styles */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .sidebar {
+        width: 200px;
+    }
+
+    .metric-card .metric-value {
+        font-size: 1.75rem;
+    }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger tap targets */
+    .btn,
+    .nav-link,
+    a {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    /* Remove hover effects on touch devices */
+    .btn:hover,
+    .nav-link:hover {
+        transform: none;
+    }
+
+    /* Larger form inputs */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    select,
+    textarea {
+        min-height: 44px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
+
+/* Dark mode support for better battery life on OLED */
+@media (prefers-color-scheme: dark) {
+    /* Optional: Add dark mode styles if needed */
+}
+
+/* Landscape orientation on phones */
+@media (max-width: 926px) and (orientation: landscape) {
+    /* Reduce vertical padding in landscape */
+    .pt-3, .py-3 {
+        padding-top: 0.5rem !important;
+    }
+
+    .pb-3, .py-3 {
+        padding-bottom: 0.5rem !important;
+    }
+
+    /* Smaller chart heights in landscape */
+    .chart-container {
+        height: 180px !important;
+    }
+}
+
+/* Print styles */
+@media print {
+    /* Hide navigation and non-essential elements */
+    .sidebar,
+    .navbar,
+    .btn-toolbar,
+    .no-print {
+        display: none !important;
+    }
+
+    /* Full width content when printing */
+    .col-md-9,
+    .col-lg-10 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    /* Print-friendly colors */
+    .table {
+        border: 1px solid #000;
+    }
+
+    .badge {
+        border: 1px solid #000;
+    }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+    /* Disable animations for users who prefer reduced motion */
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .progress-bar-animated {
+        animation: none !important;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .card {
+        border: 2px solid #000;
+    }
+
+    .btn {
+        border-width: 2px;
+    }
+}
+
+/* Loading states - prevent layout shift */
+.lazy-load {
+    min-height: 200px;
+}
+
+/* Skeleton screens for better perceived performance */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}

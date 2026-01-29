@@ -1,0 +1,631 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Dashboard - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <a href="{% url 'job_create' %}" class="btn btn-sm btn-primary mt-2 mt-md-0">
+        <i class="bi bi-plus-circle"></i> <span class="d-none d-sm-inline">New Job</span>
+    </a>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-white bg-primary h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="small">Online</div>
+                        <h3 class="mb-0" id="stat-online-agents">{{ online_agents }}</h3>
+                    </div>
+                    <i class="bi bi-hdd-rack fs-2"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-white bg-warning h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="small">Pending</div>
+                        <h3 class="mb-0" id="stat-pending-agents">{{ pending_agents }}</h3>
+                    </div>
+                    <i class="bi bi-clock-history fs-2"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-white bg-info h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="small">Active Jobs</div>
+                        <h3 class="mb-0" id="stat-active-jobs">{{ active_jobs }}</h3>
+                    </div>
+                    <i class="bi bi-arrow-repeat fs-2"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-white bg-success h-100">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="small">Total</div>
+                        <h3 class="mb-0" id="stat-total-agents">{{ agents|length }}</h3>
+                    </div>
+                    <i class="bi bi-hdd-network fs-2"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Resource Monitoring -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Agents</h5>
+            <a href="{% url 'agent_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+
+        <!-- Mobile Card View -->
+        <div class="d-md-none">
+            {% for agent in agents|slice:":5" %}
+            {% with display_status=agent.get_display_status %}
+            <div class="card mb-2" data-agent-id="{{ agent.id }}">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <a href="{% url 'agent_detail' agent.id %}" class="fw-bold">{{ agent.hostname }}</a>
+                            <div><small class="text-muted">{{ agent.ip_address }}</small></div>
+                        </div>
+                        <div class="agent-status">
+                            {% if display_status == 'online' %}
+                                <span class="badge bg-success">Online</span>
+                            {% elif display_status == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif display_status == 'imaging' %}
+                                <span class="badge bg-info">Imaging</span>
+                            {% elif display_status == 'offline' %}
+                                <span class="badge bg-secondary">Offline</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ display_status|title }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row g-2 agent-cpu">
+                        <div class="col-6">
+                            <small class="text-muted">CPU</small><br>
+                            {% if display_status == 'offline' %}
+                            <span class="badge bg-secondary">0%</span>
+                            {% elif agent.cpu_percent is not None %}
+                            <span class="badge {% if agent.cpu_percent > 80 %}bg-danger{% elif agent.cpu_percent > 60 %}bg-warning{% else %}bg-success{% endif %}">
+                                {{ agent.cpu_percent }}%
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-6 agent-memory">
+                            <small class="text-muted">Memory</small><br>
+                            {% if display_status == 'offline' %}
+                            <span class="badge bg-secondary">0%</span>
+                            {% elif agent.memory_percent is not None %}
+                            <span class="badge {% if agent.memory_percent > 90 %}bg-danger{% elif agent.memory_percent > 75 %}bg-warning{% else %}bg-success{% endif %}">
+                                {{ agent.memory_percent }}%
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endwith %}
+            {% empty %}
+            <div class="alert alert-info">No agents found</div>
+            {% endfor %}
+        </div>
+
+        <!-- Desktop Table View -->
+        <div class="table-responsive d-none d-md-block">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>Agent</th>
+                        <th>Status</th>
+                        <th>CPU</th>
+                        <th>Memory</th>
+                        <th class="d-none d-lg-table-cell">Disk</th>
+                        <th class="d-none d-xl-table-cell">Temp</th>
+                    </tr>
+                </thead>
+                <tbody id="agents-table-body">
+                    {% for agent in agents|slice:":10" %}
+                    {% with display_status=agent.get_display_status %}
+                    <tr data-agent-id="{{ agent.id }}">
+                        <td>
+                            <a href="{% url 'agent_detail' agent.id %}"><strong>{{ agent.hostname }}</strong></a>
+                            <br><small class="text-muted d-none d-lg-inline">{{ agent.ip_address }}</small>
+                        </td>
+                        <td class="agent-status">
+                            {% if display_status == 'online' %}
+                                <span class="badge bg-success">Online</span>
+                            {% elif display_status == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% elif display_status == 'imaging' %}
+                                <span class="badge bg-info">Imaging</span>
+                            {% elif display_status == 'offline' %}
+                                <span class="badge bg-secondary">Offline</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ display_status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="agent-cpu">
+                            {% if display_status == 'offline' %}
+                                <span class="badge bg-secondary">0%</span>
+                            {% elif agent.cpu_percent is not None %}
+                                <span class="badge {% if agent.cpu_percent > 80 %}bg-danger{% elif agent.cpu_percent > 60 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ agent.cpu_percent }}%
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="agent-memory">
+                            {% if display_status == 'offline' %}
+                                <span class="badge bg-secondary">0%</span>
+                            {% elif agent.memory_percent is not None %}
+                                <span class="badge {% if agent.memory_percent > 90 %}bg-danger{% elif agent.memory_percent > 75 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ agent.memory_percent }}%
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="agent-disk d-none d-lg-table-cell">
+                            {% if display_status == 'offline' %}
+                                <span class="badge bg-secondary">0%</span>
+                            {% elif agent.disk_percent is not None %}
+                                <span class="badge {% if agent.disk_percent > 90 %}bg-danger{% elif agent.disk_percent > 75 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ agent.disk_percent }}%
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="agent-temp d-none d-xl-table-cell">
+                            {% if display_status == 'offline' %}
+                                <span class="badge bg-secondary">0°C</span>
+                            {% elif agent.temperature_celsius is not None %}
+                                <span class="badge {% if agent.temperature_celsius > 80 %}bg-danger{% elif agent.temperature_celsius > 70 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ agent.temperature_celsius }}°C
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No agents found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Jobs -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Recent Jobs</h5>
+            <a href="{% url 'job_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+
+        <!-- Mobile Card View -->
+        <div class="d-md-none">
+            {% for job in jobs|slice:":5" %}
+            <div class="card mb-2" data-job-id="{{ job.id }}">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <a href="{% url 'job_detail' job.id %}" class="fw-bold">#{{ job.id }}</a> - {{ job.case_number }}
+                            <div><small class="text-muted">{{ job.agent.hostname }}</small></div>
+                        </div>
+                        <div class="job-status">
+                            {% if job.status == 'completed' %}
+                                <span class="badge bg-success">Done</span>
+                            {% elif job.status == 'in_progress' %}
+                                <span class="badge bg-info">Running</span>
+                            {% elif job.status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                            {% else %}
+                                <span class="badge bg-warning">Queued</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="job-progress">
+                        <div class="progress" style="height: 24px;">
+                            <div class="progress-bar {% if job.status == 'in_progress' %}progress-bar-striped progress-bar-animated{% endif %}"
+                                 role="progressbar"
+                                 style="width: {{ job.progress_percentage }}%;"
+                                 aria-valuenow="{{ job.progress_percentage }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                {{ job.progress_percentage }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="alert alert-info">No recent jobs</div>
+            {% endfor %}
+        </div>
+
+        <!-- Desktop Table View -->
+        <div class="table-responsive d-none d-md-block">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Case</th>
+                        <th class="d-none d-lg-table-cell">Agent</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+                <tbody id="jobs-table-body">
+                    {% for job in jobs|slice:":10" %}
+                    <tr data-job-id="{{ job.id }}">
+                        <td><a href="{% url 'job_detail' job.id %}">#{{ job.id }}</a></td>
+                        <td>{{ job.case_number }}</td>
+                        <td class="d-none d-lg-table-cell">{{ job.agent.hostname }}</td>
+                        <td class="job-status">
+                            {% if job.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                            {% elif job.status == 'in_progress' %}
+                                <span class="badge bg-info">In Progress</span>
+                            {% elif job.status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                            {% elif job.status == 'queued' %}
+                                <span class="badge bg-warning">Queued</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ job.status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="job-progress">
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar {% if job.status == 'in_progress' %}progress-bar-striped progress-bar-animated{% endif %}"
+                                     role="progressbar"
+                                     style="width: {{ job.progress_percentage }}%;"
+                                     aria-valuenow="{{ job.progress_percentage }}"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">
+                                    {{ job.progress_percentage }}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No jobs found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // WebSocket connection for real-time dashboard updates
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/dashboard/`;
+    let socket;
+    let reconnectInterval = 3000;
+    let reconnectTimer;
+
+    function connectWebSocket() {
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = function(e) {
+            console.log('WebSocket connected for dashboard updates');
+        };
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+
+            if (data.type === 'dashboard_update') {
+                updateDashboard(data.data);
+            } else if (data.type === 'agent_update') {
+                updateAgentRow(data.agent);
+            } else if (data.type === 'job_update') {
+                updateJobRow(data.job);
+            }
+        };
+
+        socket.onclose = function(e) {
+            console.log('WebSocket closed. Reconnecting...');
+            reconnectTimer = setTimeout(connectWebSocket, reconnectInterval);
+        };
+
+        socket.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            socket.close();
+        };
+    }
+
+    function updateDashboard(data) {
+        // Update statistics cards
+        if (data.online_agents !== undefined) {
+            document.getElementById('stat-online-agents').textContent = data.online_agents;
+        }
+        if (data.pending_agents !== undefined) {
+            document.getElementById('stat-pending-agents').textContent = data.pending_agents;
+        }
+        if (data.active_jobs !== undefined) {
+            document.getElementById('stat-active-jobs').textContent = data.active_jobs;
+        }
+        if (data.total_agents !== undefined) {
+            document.getElementById('stat-total-agents').textContent = data.total_agents;
+        }
+    }
+
+    function updateAgentRow(agent) {
+        const row = document.querySelector(`#agents-table-body tr[data-agent-id="${agent.id}"]`);
+
+        if (!row) {
+            // Agent not in current view, potentially reload or ignore
+            console.log('New agent or agent not in current view:', agent.id);
+            return;
+        }
+
+        // Update status
+        const statusCell = row.querySelector('.agent-status');
+        if (statusCell && agent.status) {
+            let badgeClass = 'bg-secondary';
+            let statusText = agent.status;
+
+            switch(agent.status) {
+                case 'online':
+                    badgeClass = 'bg-success';
+                    statusText = 'Online';
+                    break;
+                case 'pending':
+                    badgeClass = 'bg-warning';
+                    statusText = 'Pending';
+                    break;
+                case 'imaging':
+                    badgeClass = 'bg-info';
+                    statusText = 'Imaging';
+                    break;
+                case 'offline':
+                    badgeClass = 'bg-secondary';
+                    statusText = 'Offline';
+                    break;
+                default:
+                    statusText = agent.status.charAt(0).toUpperCase() + agent.status.slice(1);
+            }
+
+            statusCell.innerHTML = `<span class="badge ${badgeClass}">${statusText}</span>`;
+        }
+
+        // Check if agent is offline
+        const isOffline = agent.status === 'offline';
+
+        // Update CPU
+        const cpuCell = row.querySelector('.agent-cpu');
+        if (cpuCell) {
+            if (isOffline) {
+                cpuCell.innerHTML = `<span class="badge bg-secondary">0%</span>`;
+            } else if (agent.cpu_percent !== undefined && agent.cpu_percent !== null) {
+                let cpuClass = 'bg-success';
+                if (agent.cpu_percent > 80) cpuClass = 'bg-danger';
+                else if (agent.cpu_percent > 60) cpuClass = 'bg-warning';
+                cpuCell.innerHTML = `<span class="badge ${cpuClass}">${agent.cpu_percent}%</span>`;
+            }
+        }
+
+        // Update Memory
+        const memoryCell = row.querySelector('.agent-memory');
+        if (memoryCell) {
+            if (isOffline) {
+                memoryCell.innerHTML = `<span class="badge bg-secondary">0%</span>`;
+            } else if (agent.memory_percent !== undefined && agent.memory_percent !== null) {
+                let memClass = 'bg-success';
+                if (agent.memory_percent > 90) memClass = 'bg-danger';
+                else if (agent.memory_percent > 75) memClass = 'bg-warning';
+
+                let html = `<span class="badge ${memClass}">${agent.memory_percent}%</span>`;
+                if (agent.memory_used_mb && agent.memory_total_mb) {
+                    html += `<br><small class="text-muted">${agent.memory_used_mb}/${agent.memory_total_mb} MB</small>`;
+                }
+                memoryCell.innerHTML = html;
+            }
+        }
+
+        // Update Disk
+        const diskCell = row.querySelector('.agent-disk');
+        if (diskCell) {
+            if (isOffline) {
+                diskCell.innerHTML = `<span class="badge bg-secondary">0%</span>`;
+            } else if (agent.disk_percent !== undefined && agent.disk_percent !== null) {
+                let diskClass = 'bg-success';
+                if (agent.disk_percent > 90) diskClass = 'bg-danger';
+                else if (agent.disk_percent > 75) diskClass = 'bg-warning';
+
+                let html = `<span class="badge ${diskClass}">${agent.disk_percent}%</span>`;
+                if (agent.disk_used_gb && agent.disk_total_gb) {
+                    html += `<br><small class="text-muted">${agent.disk_used_gb}/${agent.disk_total_gb} GB</small>`;
+                }
+                diskCell.innerHTML = html;
+            }
+        }
+
+        // Update Temperature
+        const tempCell = row.querySelector('.agent-temp');
+        if (tempCell) {
+            if (isOffline) {
+                tempCell.innerHTML = `<span class="badge bg-secondary">0°C</span>`;
+            } else if (agent.temperature_celsius !== undefined && agent.temperature_celsius !== null) {
+                let tempClass = 'bg-success';
+                if (agent.temperature_celsius > 80) tempClass = 'bg-danger';
+                else if (agent.temperature_celsius > 70) tempClass = 'bg-warning';
+                tempCell.innerHTML = `<span class="badge ${tempClass}">${agent.temperature_celsius}°C</span>`;
+            }
+        }
+
+        // Update Last Seen
+        const lastSeenCell = row.querySelector('.agent-last-seen');
+        if (lastSeenCell && agent.last_seen_text) {
+            lastSeenCell.textContent = agent.last_seen_text;
+        }
+    }
+
+    function updateJobRow(job) {
+        const row = document.querySelector(`#jobs-table-body tr[data-job-id="${job.id}"]`);
+
+        if (!row) {
+            // Job not in current view
+            return;
+        }
+
+        // Update status badge
+        const statusCell = row.querySelector('.job-status');
+        if (statusCell) {
+            let badgeClass = 'bg-secondary';
+            let statusText = job.status;
+
+            switch(job.status) {
+                case 'completed':
+                    badgeClass = 'bg-success';
+                    statusText = 'Completed';
+                    break;
+                case 'in_progress':
+                    badgeClass = 'bg-info';
+                    statusText = 'In Progress';
+                    break;
+                case 'failed':
+                    badgeClass = 'bg-danger';
+                    statusText = 'Failed';
+                    break;
+                case 'queued':
+                    badgeClass = 'bg-warning';
+                    statusText = 'Queued';
+                    break;
+                default:
+                    statusText = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+            }
+
+            statusCell.innerHTML = `<span class="badge ${badgeClass}">${statusText}</span>`;
+        }
+
+        // Update progress bar
+        const progressCell = row.querySelector('.job-progress');
+        if (progressCell && job.progress_percentage !== undefined) {
+            const progressBar = progressCell.querySelector('.progress-bar');
+            const isInProgress = job.status === 'in_progress';
+
+            progressBar.style.width = `${job.progress_percentage}%`;
+            progressBar.setAttribute('aria-valuenow', job.progress_percentage);
+            progressBar.textContent = `${job.progress_percentage}%`;
+
+            // Add/remove animation class
+            if (isInProgress) {
+                progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
+            } else {
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+            }
+        }
+    }
+
+    // AJAX fallback polling (in case WebSocket fails)
+    let pollingInterval;
+    let wsConnected = false;
+
+    function startPolling() {
+        if (pollingInterval) return;
+        console.log('Starting AJAX polling fallback');
+        pollingInterval = setInterval(fetchDashboardData, 5000);
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+    }
+
+    function fetchDashboardData() {
+        fetch('{% url "dashboard_api" %}')
+            .then(response => response.json())
+            .then(data => {
+                // Update stats
+                if (data.stats) {
+                    document.getElementById('stat-online-agents').textContent = data.stats.online_agents;
+                    document.getElementById('stat-pending-agents').textContent = data.stats.pending_agents;
+                    document.getElementById('stat-active-jobs').textContent = data.stats.active_jobs;
+                }
+
+                // Update agents
+                if (data.agents) {
+                    data.agents.forEach(agent => updateAgentRow(agent));
+                }
+
+                // Update jobs
+                if (data.jobs) {
+                    data.jobs.forEach(job => updateJobRow(job));
+                }
+            })
+            .catch(error => console.error('Polling error:', error));
+    }
+
+    // Modified WebSocket handlers
+    socket.onopen = function(e) {
+        console.log('WebSocket connected for dashboard updates');
+        wsConnected = true;
+        stopPolling();  // Stop polling when WS connected
+    };
+
+    socket.onclose = function(e) {
+        console.log('WebSocket closed. Starting polling fallback...');
+        wsConnected = false;
+        startPolling();  // Start polling when WS disconnects
+        reconnectTimer = setTimeout(connectWebSocket, reconnectInterval);
+    };
+
+    // Connect on page load
+    connectWebSocket();
+
+    // Start polling as initial fallback (WebSocket may take time to connect)
+    setTimeout(() => {
+        if (!wsConnected) {
+            startPolling();
+        }
+    }, 2000);
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        stopPolling();
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+        }
+        if (socket) {
+            socket.close();
+        }
+    });
+</script>
+{% endblock %}

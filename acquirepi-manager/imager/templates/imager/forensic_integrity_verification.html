@@ -1,0 +1,256 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Forensic Integrity Verification - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-shield-check"></i> Forensic Integrity Verification</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="?export=json" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-download"></i> Export JSON Report
+        </a>
+    </div>
+</div>
+
+<!-- Overall Status -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        {% if results.all_valid %}
+        <div class="alert alert-success" role="alert">
+            <h4 class="alert-heading"><i class="bi bi-check-circle-fill"></i> All Chains Valid</h4>
+            <p>No tampering detected. All cryptographic hash chains are intact and verified.</p>
+            <hr>
+            <p class="mb-0"><strong>Verification Timestamp:</strong> {{ timestamp|date:"Y-m-d H:i:s T" }}</p>
+        </div>
+        {% else %}
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> Tampering Detected</h4>
+            <p>Some hash chains are broken. Review details below for specific issues.</p>
+            <hr>
+            <p class="mb-0"><strong>Verification Timestamp:</strong> {{ timestamp|date:"Y-m-d H:i:s T" }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Audit Log Chain -->
+{% if results.audit_log %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-journal-text"></i> Audit Log Chain</h5>
+            </div>
+            <div class="card-body">
+                {% if results.audit_log.valid %}
+                <div class="alert alert-success mb-0">
+                    <i class="bi bi-check-circle"></i> {{ results.audit_log.details }}
+                </div>
+                {% else %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> {{ results.audit_log.details }}
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Record ID</th>
+                                <th>Issue</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for issue in results.audit_log.broken_chains|slice:":10" %}
+                            <tr>
+                                <td>{{ issue.id }}</td>
+                                <td><span class="badge bg-danger">{{ issue.reason }}</span></td>
+                                <td>
+                                    {% if issue.expected %}
+                                    Expected: <code>{{ issue.expected|slice:":16" }}...</code><br>
+                                    Actual: <code>{{ issue.actual|slice:":16" }}...</code>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% if results.audit_log.broken_chains|length > 10 %}
+                    <p class="text-muted">... and {{ results.audit_log.broken_chains|length|add:"-10" }} more issues</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Job-Specific Chains -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-file-earmark-medical"></i> Job-Specific Verification (Latest 20 Jobs)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Case/Evidence</th>
+                                <th>Job Logs</th>
+                                <th>Chain of Custody</th>
+                                <th>Overall</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in results.jobs %}
+                            <tr>
+                                <td><a href="{% url 'job_detail' job.job_id %}">#{{ job.job_id }}</a></td>
+                                <td>{{ job.case_number }} / {{ job.evidence_number }}</td>
+                                <td>
+                                    {% if job.logs.valid %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Valid</span>
+                                    <small class="text-muted">({{ job.logs.total_records }} records)</small>
+                                    {% else %}
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Broken</span>
+                                    <small class="text-danger">({{ job.logs.broken_chains|length }} issues)</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if job.coc.valid %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Valid</span>
+                                    <small class="text-muted">({{ job.coc.total_records }} events)</small>
+                                    {% else %}
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Broken</span>
+                                    <small class="text-danger">({{ job.coc.broken_chains|length }} issues)</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if job.logs.valid and job.coc.valid %}
+                                    <span class="badge bg-success">✓ Valid</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">✗ Invalid</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'job_detail' job.job_id %}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-eye"></i> View Job
+                                    </a>
+                                </td>
+                            </tr>
+                            <!-- Expandable issues row -->
+                            {% if not job.logs.valid or not job.coc.valid %}
+                            <tr class="table-warning">
+                                <td colspan="6">
+                                    <div class="p-3">
+                                        <strong><i class="bi bi-exclamation-triangle"></i> Issues Found for Job #{{ job.job_id }}:</strong>
+
+                                        {% if not job.logs.valid %}
+                                        <div class="mt-2">
+                                            <h6 class="text-danger">Job Log Issues ({{ job.logs.broken_chains|length }} total):</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Record ID</th>
+                                                            <th>Issue Type</th>
+                                                            <th>Details</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for issue in job.logs.broken_chains|slice:":5" %}
+                                                        <tr>
+                                                            <td><code>{{ issue.id }}</code></td>
+                                                            <td><span class="badge bg-danger">{{ issue.reason }}</span></td>
+                                                            <td>
+                                                                {% if issue.expected %}
+                                                                Expected hash: <code>{{ issue.expected|slice:":16" }}...</code><br>
+                                                                Actual hash: <code>{{ issue.actual|slice:":16" }}...</code>
+                                                                {% else %}
+                                                                Hash validation failed
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                                {% if job.logs.broken_chains|length > 5 %}
+                                                <p class="text-muted mb-0">... and {{ job.logs.broken_chains|length|add:"-5" }} more issues.
+                                                <a href="{% url 'job_detail' job.job_id %}">View job details</a></p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if not job.coc.valid %}
+                                        <div class="mt-3">
+                                            <h6 class="text-danger">Chain of Custody Issues ({{ job.coc.broken_chains|length }} total):</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Event ID</th>
+                                                            <th>Event Type</th>
+                                                            <th>Timestamp</th>
+                                                            <th>Issue Type</th>
+                                                            <th>Details</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for issue in job.coc.broken_chains|slice:":5" %}
+                                                        <tr>
+                                                            <td><code>{{ issue.id }}</code></td>
+                                                            <td><span class="badge bg-info">{{ issue.event_type|default:"N/A" }}</span></td>
+                                                            <td><small>{{ issue.timestamp|default:"N/A" }}</small></td>
+                                                            <td><span class="badge bg-danger">{{ issue.reason }}</span></td>
+                                                            <td>
+                                                                {% if issue.expected %}
+                                                                Expected: <code>{{ issue.expected|slice:":16" }}...</code><br>
+                                                                Actual: <code>{{ issue.actual|slice:":16" }}...</code>
+                                                                {% else %}
+                                                                Hash validation failed
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                                {% if job.coc.broken_chains|length > 5 %}
+                                                <p class="text-muted mb-0">... and {{ job.coc.broken_chains|length|add:"-5" }} more issues.
+                                                <a href="{% url 'job_detail' job.job_id %}">View job details</a></p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Information Box -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> About Forensic Integrity Verification</h5>
+            <p><strong>What This Verifies:</strong></p>
+            <ul>
+                <li>Cryptographic hash chains for all audit logs, job logs, and chain of custody events</li>
+                <li>Each record is linked to the previous via SHA256 hash (blockchain-style)</li>
+                <li>Any modification, deletion, or tampering breaks the chain and is immediately detectable</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

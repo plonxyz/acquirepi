@@ -1,0 +1,813 @@
+{% extends 'imager/base.html' %}
+{% load humanize %}
+
+{% block title %}Job #{{ job.id }} - acquirepi Manager{% endblock %}
+
+{% block extra_head %}
+{% if job.status == 'queued' or job.status == 'in_progress' %}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Job #{{ job.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        {% if job.status == 'queued' or job.status == 'in_progress' %}
+        <form method="post" action="{% url 'job_cancel' job.id %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to cancel this job?');">
+                <i class="bi bi-x-circle"></i> Cancel Job
+            </button>
+        </form>
+        {% endif %}
+
+        {% if job.status == 'failed' or job.status == 'cancelled' %}
+        <form method="post" action="{% url 'job_restart' job.id %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Are you sure you want to restart this job?');">
+                <i class="bi bi-arrow-clockwise"></i> Restart Job
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Job Status Card -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Job Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Agent:</dt>
+                            <dd class="col-sm-8"><a href="{% url 'agent_detail' job.agent.id %}">{{ job.agent.hostname }}</a></dd>
+
+                            <dt class="col-sm-4">Case Number:</dt>
+                            <dd class="col-sm-8">{{ job.case_number }}</dd>
+
+                            <dt class="col-sm-4">Evidence #:</dt>
+                            <dd class="col-sm-8">{{ job.evidence_number }}</dd>
+
+                            <dt class="col-sm-4">Examiner:</dt>
+                            <dd class="col-sm-8">{{ job.examiner_name }}</dd>
+
+                            <dt class="col-sm-4">Image Name:</dt>
+                            <dd class="col-sm-8"><code>{{ job.image_name }}{% if not job.mobile_extraction %}.E01{% endif %}</code></dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8" id="jobStatus">
+                                {% if job.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                {% elif job.status == 'in_progress' %}
+                                    <span class="badge bg-info">In Progress</span>
+                                {% elif job.status == 'failed' %}
+                                    <span class="badge bg-danger">Failed</span>
+                                {% elif job.status == 'queued' %}
+                                    <span class="badge bg-warning">Queued</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ job.status|title }}</span>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-4">Method:</dt>
+                            <dd class="col-sm-8"><span class="badge bg-primary">{{ job.upload_method|upper }}</span></dd>
+
+                            <dt class="col-sm-4">Created:</dt>
+                            <dd class="col-sm-8">{{ job.created_at }}</dd>
+
+                            <dt class="col-sm-4">Started:</dt>
+                            <dd class="col-sm-8" id="jobStarted">{{ job.started_at|default:"-" }}</dd>
+
+                            <dt class="col-sm-4">Completed:</dt>
+                            <dd class="col-sm-8">{{ job.completed_at|default:"-" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                <hr>
+                <dl class="row mb-0">
+                    <dt class="col-sm-2">Description:</dt>
+                    <dd class="col-sm-10">{{ job.description }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Mobile Extraction Metadata Card (only for mobile extraction jobs) -->
+        {% if job.mobile_extraction %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="bi bi-phone"></i> Mobile Device Extraction Details</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Device:</dt>
+                    <dd class="col-sm-9">
+                        <a href="{% url 'mobile_device_detail' job.mobile_extraction.mobile_device.id %}">
+                            {{ job.mobile_extraction.mobile_device.device_name }}
+                            ({{ job.mobile_extraction.mobile_device.model }})
+                        </a>
+                    </dd>
+
+                    {% if job.mobile_extraction.device_owner %}
+                    <dt class="col-sm-3">Device Owner:</dt>
+                    <dd class="col-sm-9">{{ job.mobile_extraction.device_owner }}</dd>
+                    {% endif %}
+
+                    {% if job.mobile_extraction.device_context %}
+                    <dt class="col-sm-3">Context/Purpose:</dt>
+                    <dd class="col-sm-9">{{ job.mobile_extraction.device_context }}</dd>
+                    {% endif %}
+
+                    <dt class="col-sm-3">Extraction Method:</dt>
+                    <dd class="col-sm-9">
+                        <span class="badge bg-info">{{ job.mobile_extraction.get_extraction_method_display }}</span>
+                    </dd>
+
+                    {% if job.mobile_extraction.backup_name %}
+                    <dt class="col-sm-3">Backup Name:</dt>
+                    <dd class="col-sm-9"><code>{{ job.mobile_extraction.backup_name }}</code></dd>
+                    {% endif %}
+
+                    {% if job.mobile_extraction.backup_encrypted %}
+                    <dt class="col-sm-3">Encryption:</dt>
+                    <dd class="col-sm-9"><span class="badge bg-warning">Encrypted Backup</span></dd>
+                    {% endif %}
+
+                    {% if job.mobile_extraction.extraction_notes %}
+                    <dt class="col-sm-3">Notes:</dt>
+                    <dd class="col-sm-9">{{ job.mobile_extraction.extraction_notes }}</dd>
+                    {% endif %}
+
+                    {% if job.mobile_extraction.files_extracted %}
+                    <dt class="col-sm-3">Files Extracted:</dt>
+                    <dd class="col-sm-9">{{ job.mobile_extraction.files_extracted|intcomma }}</dd>
+                    {% endif %}
+
+                    {% if job.mobile_extraction.extraction_size_bytes %}
+                    <dt class="col-sm-3">Extraction Size:</dt>
+                    <dd class="col-sm-9">{{ job.mobile_extraction.extraction_size_bytes|filesizeformat }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Progress Card -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-graph-up"></i> Progress</h5>
+            </div>
+            <div class="card-body text-center">
+                <h1 id="progressPercent" class="display-4">{{ job.progress_percentage }}%</h1>
+                <div class="progress mb-3" style="height: 30px;">
+                    <div id="progressBar" class="progress-bar {% if job.status == 'in_progress' %}progress-bar-striped progress-bar-animated{% endif %}"
+                         role="progressbar"
+                         style="width: {{ job.progress_percentage }}%;"
+                         aria-valuenow="{{ job.progress_percentage }}"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                    </div>
+                </div>
+                {% if job.transfer_speed %}
+                <p class="mb-1"><strong>Speed:</strong> <span id="transferSpeed">{{ job.transfer_speed }}</span></p>
+                {% endif %}
+                {% if job.acquired_bytes > 0 %}
+                <p class="mb-0">
+                    <span id="acquiredBytes">{{ job.acquired_bytes|filesizeformat }}</span> /
+                    <span id="totalBytes">{{ job.total_bytes|filesizeformat }}</span>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if settings.enable_qr_codes %}
+        <!-- QR Code Card -->
+        <div class="card mt-3">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-qr-code"></i> QR Code</h5>
+            </div>
+            <div class="card-body text-center">
+                <img src="{% url 'job_qr_code' job.id %}" alt="QR Code" class="img-fluid mb-3" style="max-width: 200px;">
+                <p class="small text-muted mb-2">Scan for instant access</p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'job_evidence_label' job.id %}" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <i class="bi bi-printer"></i> Print Evidence Label
+                    </a>
+                    <a href="{% url 'job_custody_scan' job.id %}" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-qr-code-scan"></i> Log Custody Transfer
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if job.status == 'completed' %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5><i class="bi bi-check-circle"></i> Result</h5>
+            </div>
+            <div class="card-body">
+                {% if job.output_path or job.image_size %}
+                    {% if job.output_path %}
+                    <p><strong>Output:</strong><br><code>{{ job.output_path }}</code></p>
+                    {% endif %}
+                    {% if job.image_size %}
+                    <p><strong>Size:</strong> {{ job.image_size|filesizeformat }}</p>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>No result data available</strong><br>
+                        <small class="text-muted">The agent completed this job but did not provide output details (file path and size). This may indicate the job was manually completed or the agent encountered an issue.</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if job.error_message %}
+        <div class="card mt-3 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5><i class="bi bi-exclamation-triangle"></i> Error</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ job.error_message }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Hash Verification Section -->
+{% if job.source_md5 or job.source_sha1 or job.source_sha256 or job.image_md5 or job.image_sha1 or job.image_sha256 %}
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="bi bi-shield-check"></i> Hash Verification</h5>
+    </div>
+    <div class="card-body">
+        {% if job.hash_verified %}
+            <div class="alert alert-success">
+                <strong><i class="bi bi-check-circle-fill"></i> Hash Verification PASSED</strong>
+                {% if job.hash_verified_at %}- Verified at {{ job.hash_verified_at }}{% endif %}
+            </div>
+        {% elif job.source_md5 and job.image_md5 %}
+            <div class="alert alert-danger">
+                <strong><i class="bi bi-x-circle-fill"></i> Hash Verification FAILED</strong> - Hashes do not match!
+            </div>
+        {% endif %}
+
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">Hash Type</th>
+                    <th style="width: 40%;">Source Device</th>
+                    <th style="width: 40%;">Image File</th>
+                    <th style="width: 5%;">Match</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if job.source_md5 or job.image_md5 %}
+                <tr>
+                    <td><strong>MD5</strong></td>
+                    <td>{% if job.source_md5 %}<code style="font-size: 0.85rem;">{{ job.source_md5 }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td>{% if job.image_md5 %}<code style="font-size: 0.85rem;">{{ job.image_md5 }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td class="text-center">
+                        {% if job.source_md5 and job.image_md5 %}
+                            {% if job.source_md5|lower == job.image_md5|lower %}
+                                <span class="badge bg-success">✓</span>
+                            {% else %}
+                                <span class="badge bg-danger">✗</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+
+                {% if job.source_sha1 or job.image_sha1 %}
+                <tr>
+                    <td><strong>SHA1</strong></td>
+                    <td>{% if job.source_sha1 %}<code style="font-size: 0.85rem;">{{ job.source_sha1 }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td>{% if job.image_sha1 %}<code style="font-size: 0.85rem;">{{ job.image_sha1 }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td class="text-center">
+                        {% if job.source_sha1 and job.image_sha1 %}
+                            {% if job.source_sha1|lower == job.image_sha1|lower %}
+                                <span class="badge bg-success">✓</span>
+                            {% else %}
+                                <span class="badge bg-danger">✗</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+
+                {% if job.source_sha256 or job.image_sha256 %}
+                <tr>
+                    <td><strong>SHA256</strong></td>
+                    <td>{% if job.source_sha256 %}<code style="font-size: 0.85rem;">{{ job.source_sha256 }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td>{% if job.image_sha256 %}<code style="font-size: 0.85rem;">{{ job.image_sha256 }}</code>{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                    <td class="text-center">
+                        {% if job.source_sha256 and job.image_sha256 %}
+                            {% if job.source_sha256|lower == job.image_sha256|lower %}
+                                <span class="badge bg-success">✓</span>
+                            {% else %}
+                                <span class="badge bg-danger">✗</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- EWF Metadata -->
+        {% if job.ewf_format %}
+        <h6 class="mt-4"><i class="bi bi-file-earmark-binary"></i> EWF/E01 Metadata</h6>
+        <table class="table table-sm">
+            <tr><td style="width: 30%;"><strong>Format:</strong></td><td>{{ job.ewf_format }}</td></tr>
+            {% if job.ewf_compression %}<tr><td><strong>Compression:</strong></td><td>{{ job.ewf_compression }}</td></tr>{% endif %}
+            {% if job.ewf_sector_count %}<tr><td><strong>Sector Count:</strong></td><td>{{ job.ewf_sector_count|intcomma }}</td></tr>{% endif %}
+            {% if job.ewf_bytes_per_sector %}<tr><td><strong>Bytes per Sector:</strong></td><td>{{ job.ewf_bytes_per_sector }}</td></tr>{% endif %}
+            {% if job.ewf_media_size %}<tr><td><strong>Media Size:</strong></td><td>{{ job.ewf_media_size|filesizeformat }}</td></tr>{% endif %}
+            {% if job.ewf_chunk_size %}<tr><td><strong>Chunk Size:</strong></td><td>{{ job.ewf_chunk_size }}</td></tr>{% endif %}
+            {% if job.ewf_guid %}<tr><td><strong>GUID:</strong></td><td><code>{{ job.ewf_guid }}</code></td></tr>{% endif %}
+            {% if job.ewf_acquiry_date %}<tr><td><strong>Acquisition Date:</strong></td><td>{{ job.ewf_acquiry_date }}</td></tr>{% endif %}
+        </table>
+        {% endif %}
+
+        {% if settings.enable_chain_of_custody %}
+        <!-- Chain of Custody Buttons -->
+        <div class="mt-3">
+            <div class="btn-group" role="group">
+                <!-- Dropdown for CoC Report formats -->
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-file-earmark-text"></i> Chain of Custody Report
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item" href="{% url 'job_coc_report' job.id %}?format=pdf" target="_blank">
+                                <i class="bi bi-file-earmark-pdf text-danger"></i> Download as PDF
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'job_coc_report' job.id %}?format=txt" target="_blank">
+                                <i class="bi bi-file-text"></i> Download as Text
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <button type="button" class="btn btn-outline-primary" onclick="sendCoCToWebhook({{ job.id }})" id="webhook-btn-{{ job.id }}">
+                    <i class="bi bi-send"></i> Send to Webhook
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Forensic Integrity Verification -->
+{% if job.integrity_verified %}
+<div class="card mb-4">
+    <div class="card-header {% if job.integrity_valid %}bg-success{% else %}bg-danger{% endif %} text-white">
+        <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Forensic Integrity Verification</h5>
+    </div>
+    <div class="card-body">
+        {% if job.integrity_valid %}
+            <div class="alert alert-success mb-3">
+                <h5 class="alert-heading"><i class="bi bi-check-circle-fill"></i> Integrity Verification PASSED</h5>
+                <p class="mb-0">All cryptographic hash chains are intact. No tampering detected in job logs or chain of custody records.</p>
+            </div>
+        {% else %}
+            <div class="alert alert-danger mb-3">
+                <h5 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> Integrity Verification FAILED</h5>
+                <p class="mb-0">One or more hash chains are broken. This may indicate tampering, data corruption, or records created before immutability system was implemented.</p>
+            </div>
+        {% endif %}
+
+        <dl class="row mb-3">
+            <dt class="col-sm-3">Verified At:</dt>
+            <dd class="col-sm-9">{{ job.integrity_verified_at }}</dd>
+
+            <dt class="col-sm-3">Overall Status:</dt>
+            <dd class="col-sm-9">
+                {% if job.integrity_valid %}
+                    <span class="badge bg-success"><i class="bi bi-shield-check"></i> VALID</span>
+                {% else %}
+                    <span class="badge bg-danger"><i class="bi bi-shield-exclamation"></i> INVALID</span>
+                {% endif %}
+            </dd>
+        </dl>
+
+        {% if job.integrity_report %}
+        <h6><i class="bi bi-file-earmark-text"></i> Verification Details</h6>
+        <table class="table table-sm table-bordered">
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Status</th>
+                    <th>Total Records</th>
+                    <th>Issues</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if job.integrity_report.job_logs %}
+                <tr>
+                    <td><strong>Job Logs</strong></td>
+                    <td>
+                        {% if job.integrity_report.job_logs.valid %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Valid</span>
+                        {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Invalid</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ job.integrity_report.job_logs.total_records }}</td>
+                    <td>
+                        {% if job.integrity_report.job_logs.broken_chains %}
+                            <span class="badge bg-danger">{{ job.integrity_report.job_logs.broken_chains|length }}</span>
+                        {% else %}
+                            <span class="text-muted">None</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+
+                {% if job.integrity_report.chain_of_custody %}
+                <tr>
+                    <td><strong>Chain of Custody</strong></td>
+                    <td>
+                        {% if job.integrity_report.chain_of_custody.valid %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Valid</span>
+                        {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Invalid</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ job.integrity_report.chain_of_custody.total_records }}</td>
+                    <td>
+                        {% if job.integrity_report.chain_of_custody.broken_chains %}
+                            <span class="badge bg-danger">{{ job.integrity_report.chain_of_custody.broken_chains|length }}</span>
+                        {% else %}
+                            <span class="text-muted">None</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        {% if not job.integrity_valid %}
+        <div class="alert alert-info mt-3">
+            <strong><i class="bi bi-info-circle"></i> Note:</strong> Records created before the immutability system was implemented may show as having broken chains. This is expected for legacy data. View the <a href="{% url 'forensic_integrity_verification' %}?job={{ job.id }}" class="alert-link">detailed integrity report</a> for specific issues.
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="{% url 'forensic_integrity_verification' %}?job={{ job.id }}" class="btn btn-outline-primary">
+                <i class="bi bi-search"></i> View Detailed Report
+            </a>
+        </div>
+    </div>
+</div>
+{% elif job.status == 'completed' %}
+<div class="card mb-4 border-warning">
+    <div class="card-header bg-warning">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Integrity Verification Pending</h5>
+    </div>
+    <div class="card-body">
+        <p class="mb-0">Forensic integrity verification has not yet been performed for this job. This should happen automatically when the job completes.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Forensic Documentation -->
+<div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0"><i class="bi bi-clipboard2-check"></i> Forensic Documentation</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- Source Device Documentation -->
+            <div class="col-md-12 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-hdd"></i> Source Device Documentation</h6>
+                        <p class="card-text text-muted small">Record device details, condition, and SMART data</p>
+                        {% if job.source_device %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Documented</span>
+                            <p class="mt-2 mb-0 small">
+                                <strong>Device:</strong> {{ job.source_device.manufacturer }} {{ job.source_device.model_number }}<br>
+                                <strong>S/N:</strong> {{ job.source_device.serial_number|default:"N/A" }}
+                            </p>
+                        {% else %}
+                            <span class="badge bg-warning"><i class="bi bi-exclamation-circle"></i> Not Documented</span>
+                        {% endif %}
+                        <div class="mt-3">
+                            <a href="{% url 'source_device_documentation' job.id %}" class="btn btn-sm btn-outline-primary">
+                                {% if job.source_device %}View/Edit{% else %}Document{% endif %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if settings.enable_qa_review %}
+            <!-- QA Review -->
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-clipboard-check"></i> Quality Assurance Review</h6>
+                        <p class="card-text text-muted small">Complete QA checklist and final approval</p>
+                        {% if job.qa_review %}
+                            {% if job.qa_review.final_approval %}
+                                <span class="badge bg-success"><i class="bi bi-award"></i> Approved</span>
+                            {% elif job.qa_review.review_status == 'in_review' %}
+                                <span class="badge bg-info"><i class="bi bi-hourglass-split"></i> In Review</span>
+                            {% elif job.qa_review.review_status == 'requires_correction' %}
+                                <span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Corrections Required</span>
+                            {% else %}
+                                <span class="badge bg-secondary"><i class="bi bi-clock"></i> {{ job.qa_review.get_review_status_display }}</span>
+                            {% endif %}
+                            <p class="mt-2 mb-0 small">
+                                <strong>Reviewer:</strong> {% if job.qa_review.reviewed_by %}{{ job.qa_review.reviewed_by.username }}{% else %}Not assigned{% endif %}<br>
+                                <strong>All Checks Passed:</strong>
+                                {% if job.qa_review.all_checks_passed %}
+                                    <span class="text-success">Yes</span>
+                                {% else %}
+                                    <span class="text-warning">No</span>
+                                {% endif %}
+                            </p>
+                        {% else %}
+                            <span class="badge bg-warning"><i class="bi bi-exclamation-circle"></i> Not Started</span>
+                        {% endif %}
+                        <div class="mt-3">
+                            <a href="{% url 'qa_review' job.id %}" class="btn btn-sm btn-outline-primary">
+                                {% if job.qa_review %}Continue Review{% else %}Start Review{% endif %}
+                            </a>
+                            {% if job.qa_review and user.profile.role == 'admin' %}
+                                <a href="{% url 'qa_review_approval' job.id %}" class="btn btn-sm btn-outline-success">
+                                    Final Approval
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if settings.enable_chain_of_custody %}
+            <!-- Evidence Timeline -->
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="bi bi-clock-history"></i> Evidence Timeline (Chain of Custody)</h6>
+                        <p class="card-text text-muted small">View and log evidence handling events</p>
+                        {% with event_count=job.handling_events.count %}
+                            <span class="badge bg-info">{{ event_count }} event{{ event_count|pluralize }}</span>
+                        {% endwith %}
+                        <div class="mt-3">
+                            <a href="{% url 'evidence_timeline' job.id %}" class="btn btn-sm btn-outline-primary">
+                                View Timeline
+                            </a>
+                            <a href="{% url 'evidence_event_log' job.id %}" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-plus-circle"></i> Log Event
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if settings.enable_qa_review %}
+        <!-- Forensic Completion Status -->
+        <div class="mt-3 p-3 bg-light rounded">
+            <div class="row">
+                <div class="col-md-6">
+                    <strong>QA Review Required:</strong>
+                    {% if job.qa_review_required %}
+                        <span class="badge bg-warning">Yes</span>
+                    {% else %}
+                        <span class="badge bg-secondary">No</span>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <strong>QA Review Completed:</strong>
+                    {% if job.qa_review_completed %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Complete</span>
+                    {% else %}
+                        <span class="badge bg-warning"><i class="bi bi-hourglass-split"></i> Pending</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-12">
+                    <strong>Forensic Documentation Complete:</strong>
+                    {% if job.forensic_documentation_complete %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Complete - Ready for Court</span>
+                    {% else %}
+                        <span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Incomplete</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Logs -->
+<div class="card">
+    <div class="card-header">
+        <h5><i class="bi bi-file-text"></i> Logs</h5>
+    </div>
+    <div class="card-body">
+        <div id="logContainer" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
+            {% for log in logs %}
+            <div class="log-entry">
+                <span class="text-muted">[{{ log.timestamp }}]</span>
+                <span class="badge bg-{% if log.level == 'error' %}danger{% elif log.level == 'warning' %}warning{% else %}info{% endif %}">
+                    {{ log.level|upper }}
+                </span>
+                {{ log.message }}
+            </div>
+            {% empty %}
+            <p class="text-muted">No logs yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // WebSocket connection for real-time updates
+    const jobId = {{ job.id }};
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/job/${jobId}/`);
+
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'job_update') {
+            const job = data.job;
+
+            // Update progress
+            document.getElementById('progressPercent').textContent = job.progress_percentage + '%';
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = job.progress_percentage + '%';
+            progressBar.setAttribute('aria-valuenow', job.progress_percentage);
+
+            // Update speed and bytes if available
+            if (job.transfer_speed && document.getElementById('transferSpeed')) {
+                document.getElementById('transferSpeed').textContent = job.transfer_speed;
+            }
+            if (job.acquired_bytes > 0 && document.getElementById('acquiredBytes')) {
+                document.getElementById('acquiredBytes').textContent = formatBytes(job.acquired_bytes);
+            }
+            if (job.total_bytes > 0 && document.getElementById('totalBytes')) {
+                document.getElementById('totalBytes').textContent = formatBytes(job.total_bytes);
+            }
+
+            // Update status badge
+            const statusEl = document.getElementById('jobStatus');
+            if (statusEl) {
+                let badgeClass = 'bg-secondary';
+                let statusText = job.status;
+                switch(job.status) {
+                    case 'completed': badgeClass = 'bg-success'; statusText = 'Completed'; break;
+                    case 'in_progress': badgeClass = 'bg-info'; statusText = 'In Progress'; break;
+                    case 'failed': badgeClass = 'bg-danger'; statusText = 'Failed'; break;
+                    case 'queued': badgeClass = 'bg-warning'; statusText = 'Queued'; break;
+                }
+                statusEl.innerHTML = `<span class="badge ${badgeClass}">${statusText}</span>`;
+            }
+
+            // Reload page if status changed to get updated timestamps
+            if (job.status === 'completed' || job.status === 'failed' || job.status === 'in_progress') {
+                const startedEl = document.getElementById('jobStarted');
+                if (startedEl && startedEl.textContent.trim() === '-') {
+                    // Started timestamp not set yet, reload to get it
+                    setTimeout(() => location.reload(), 1000);
+                }
+            }
+            if (job.status === 'completed' || job.status === 'failed') {
+                setTimeout(() => location.reload(), 1000);
+            }
+        } else if (data.type === 'job_log') {
+            const log = data.log;
+            const logContainer = document.getElementById('logContainer');
+
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+
+            const levelClass = log.level === 'error' ? 'danger' : log.level === 'warning' ? 'warning' : 'info';
+
+            logEntry.innerHTML = `
+                <span class="text-muted">[${log.timestamp}]</span>
+                <span class="badge bg-${levelClass}">${log.level.toUpperCase()}</span>
+                ${log.message}
+            `;
+
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    };
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    // Send Chain of Custody report to webhook
+    function sendCoCToWebhook(jobId) {
+        const btn = document.getElementById(`webhook-btn-${jobId}`);
+        const originalHTML = btn.innerHTML;
+
+        // Show loading state
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Sending...';
+
+        fetch(`/jobs/${jobId}/send-coc-webhook/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Sent!';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-success');
+
+                // Show notification
+                alert(`✅ Chain of Custody report sent to ${data.webhook_count} webhook(s)!`);
+
+                // Reset button after 3 seconds
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-primary');
+                    btn.disabled = false;
+                }, 3000);
+            } else {
+                // Show error
+                btn.innerHTML = '<i class="bi bi-x-circle"></i> Failed';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-danger');
+                alert(`❌ Error: ${data.error}`);
+
+                // Reset button after 3 seconds
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('btn-danger');
+                    btn.classList.add('btn-outline-primary');
+                    btn.disabled = false;
+                }, 3000);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            btn.innerHTML = '<i class="bi bi-x-circle"></i> Failed';
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-danger');
+            alert('❌ Network error occurred');
+
+            // Reset button after 3 seconds
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-outline-primary');
+                btn.disabled = false;
+            }, 3000);
+        });
+    }
+
+    // Fallback: Auto-refresh every 5 seconds for queued/in-progress jobs
+    const currentStatus = '{{ job.status }}';
+    if (currentStatus === 'queued' || currentStatus === 'in_progress') {
+        setInterval(function() {
+            location.reload();
+        }, 5000);
+    }
+</script>
+{% endblock %}

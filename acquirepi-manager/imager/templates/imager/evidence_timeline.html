@@ -1,0 +1,249 @@
+{% extends 'imager/base.html' %}
+{% load humanize %}
+
+{% block title %}Evidence Timeline - Job #{{ job.id }} - acquirepi Manager{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-clock-history"></i> Evidence Timeline (Chain of Custody)</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'evidence_event_log' job.id %}" class="btn btn-sm btn-primary me-2">
+            <i class="bi bi-plus-circle"></i> Log New Event
+        </a>
+        <a href="{% url 'job_detail' job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Job
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Job #{{ job.id }} - {{ job.case_number }} / {{ job.evidence_number }}</h5>
+            </div>
+            <div class="card-body">
+                {% if events %}
+                <div class="timeline">
+                    {% for event in events %}
+                    <div class="timeline-item mb-4">
+                        <div class="row">
+                            <div class="col-md-2 text-end">
+                                <strong>{{ event.event_timestamp|date:"Y-m-d" }}</strong><br>
+                                <small class="text-muted">{{ event.event_timestamp|time:"H:i" }}</small>
+                            </div>
+                            <div class="col-md-1 text-center">
+                                <div class="timeline-marker">
+                                    {% if event.event_type == 'received' %}
+                                        <i class="bi bi-box-seam text-primary" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'examined' %}
+                                        <i class="bi bi-search text-info" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'photographed' %}
+                                        <i class="bi bi-camera text-secondary" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'sealed' %}
+                                        <i class="bi bi-lock text-warning" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'write_blocker_tested' %}
+                                        <i class="bi bi-shield-check text-success" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'imaging_started' %}
+                                        <i class="bi bi-play-circle text-primary" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'imaging_completed' %}
+                                        <i class="bi bi-check-circle text-success" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'hash_verified' %}
+                                        <i class="bi bi-hash text-success" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'qa_reviewed' %}
+                                        <i class="bi bi-clipboard-check text-info" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'transferred' %}
+                                        <i class="bi bi-arrow-left-right text-danger" style="font-size: 1.5rem;"></i>
+                                    {% elif event.event_type == 'stored' %}
+                                        <i class="bi bi-archive text-secondary" style="font-size: 1.5rem;"></i>
+                                    {% else %}
+                                        <i class="bi bi-circle text-muted" style="font-size: 1.5rem;"></i>
+                                    {% endif %}
+                                </div>
+                                {% if not forloop.last %}
+                                <div class="timeline-line"></div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-9">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            {{ event.get_event_type_display }}
+                                            {% if event.event_type == 'transferred' %}
+                                                <span class="badge bg-warning">Custody Transfer</span>
+                                            {% endif %}
+                                        </h6>
+                                        <p class="card-text">{{ event.event_description }}</p>
+
+                                        <div class="row mt-3">
+                                            <div class="col-md-6">
+                                                <small class="text-muted">
+                                                    <strong>Performed by:</strong>
+                                                    {% if event.performed_by %}
+                                                        {{ event.performed_by.get_full_name|default:event.performed_by.username }}
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">System</span>
+                                                    {% endif %}
+                                                    <br>
+                                                    {% if event.location %}
+                                                    <strong>Location:</strong> {{ event.location }}<br>
+                                                    {% endif %}
+                                                    {% if event.evidence_condition %}
+                                                    <strong>Condition:</strong> {{ event.evidence_condition }}<br>
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                            <div class="col-md-6">
+                                                {% if event.witnesses.exists or event.witness_names %}
+                                                <small class="text-muted">
+                                                    <strong>Witnesses:</strong><br>
+                                                    {% for witness in event.witnesses.all %}
+                                                        - {{ witness.get_full_name|default:witness.username }}<br>
+                                                    {% endfor %}
+                                                    {% if event.witness_names %}
+                                                        {{ event.witness_names|linebreaksbr }}
+                                                    {% endif %}
+                                                </small>
+                                                {% endif %}
+
+                                                {% if event.event_type == 'transferred' %}
+                                                <small class="text-muted">
+                                                    <strong>From:</strong>
+                                                    {% if event.transferred_from %}
+                                                        {{ event.transferred_from.get_full_name|default:event.transferred_from.username }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                    <br>
+                                                    <strong>To:</strong>
+                                                    {% if event.transferred_to %}
+                                                        {{ event.transferred_to.get_full_name|default:event.transferred_to.username }}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                    <br>
+                                                    {% if event.transfer_reason %}
+                                                    <strong>Reason:</strong> {{ event.transfer_reason }}
+                                                    {% endif %}
+                                                </small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+
+                                        {% if event.notes %}
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                <strong>Notes:</strong> {{ event.notes }}
+                                            </small>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if event.photos.exists %}
+                                        <div class="mt-3">
+                                            <strong><i class="bi bi-camera"></i> Evidence Photos ({{ event.photos.count }})</strong>
+                                            <div class="row mt-2">
+                                                {% for photo in event.photos.all %}
+                                                <div class="col-md-3 mb-2">
+                                                    <div class="card">
+                                                        <a href="{{ photo.photo.url }}" data-lightbox="event-{{ event.id }}" data-title="{{ photo.caption }}">
+                                                            <img src="{{ photo.photo.url }}" class="card-img-top" alt="{{ photo.caption }}" style="height: 150px; object-fit: cover;">
+                                                        </a>
+                                                        {% if photo.caption %}
+                                                        <div class="card-body p-2">
+                                                            <small class="text-muted">{{ photo.caption }}</small>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if event.signatures.exists %}
+                                        <div class="mt-3">
+                                            <strong><i class="bi bi-pen-fill"></i> Digital Signatures ({{ event.signatures.count }})</strong>
+                                            <div class="mt-2">
+                                                {% for signature in event.signatures.all %}
+                                                <div class="card mb-2" style="background-color: #f8f9fa;">
+                                                    <div class="card-body p-3">
+                                                        <div class="row">
+                                                            <div class="col-md-8">
+                                                                <p class="mb-1"><strong>{{ signature.signer_name }}</strong></p>
+                                                                <p class="mb-1"><small class="text-muted">{{ signature.signer_role }}</small></p>
+                                                                <p class="mb-1"><small class="text-muted">Signed: {{ signature.signed_at|date:"M d, Y g:i A" }}</small></p>
+                                                                {% if signature.verify_signature %}
+                                                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
+                                                                {% else %}
+                                                                <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Verification Failed</span>
+                                                                {% endif %}
+                                                            </div>
+                                                            <div class="col-md-4 text-end">
+                                                                {% if signature.get_signature_image_url %}
+                                                                <img src="{{ signature.get_signature_image_url }}" alt="Signature" style="max-width: 200px; max-height: 80px; border: 1px solid #ddd; background: white; padding: 5px;">
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        <div class="mt-3">
+                                            <a href="{% url 'upload_event_photos' event.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-camera-fill"></i> Add Photos
+                                            </a>
+                                            <a href="{% url 'sign_evidence_event' event.id %}" class="btn btn-sm btn-success">
+                                                <i class="bi bi-pen-fill"></i> Sign Event
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No evidence handling events have been logged yet.
+                    <a href="{% url 'evidence_event_log' job.id %}" class="alert-link">Log the first event</a>.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline-marker {
+    position: relative;
+    z-index: 2;
+}
+.timeline-line {
+    width: 2px;
+    height: 100%;
+    background-color: #dee2e6;
+    margin: 0 auto;
+    position: relative;
+    top: 10px;
+}
+</style>
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
+<script>
+    lightbox.option({
+        'resizeDuration': 200,
+        'wrapAround': true,
+        'albumLabel': 'Image %1 of %2'
+    });
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Shell Sessions - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-terminal"></i> Remote Shell Sessions</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5><i class="bi bi-list"></i> Session History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Session ID</th>
+                        <th>User</th>
+                        <th>Agent</th>
+                        <th>Started</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>IP Address</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for session in sessions %}
+                    <tr>
+                        <td><code>{{ session.session_id|slice:":8" }}...</code></td>
+                        <td>{{ session.user.username|default:"Unknown" }}</td>
+                        <td>
+                            <a href="{% url 'agent_detail' session.agent.id %}">
+                                {{ session.agent.hostname }}
+                            </a>
+                        </td>
+                        <td>{{ session.started_at|date:"Y-m-d H:i:s" }}</td>
+                        <td>
+                            {% if session.ended_at %}
+                                {% with duration=session.ended_at|timesince:session.started_at %}
+                                    {{ duration }}
+                                {% endwith %}
+                            {% elif session.status == 'active' %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if session.status == 'active' %}
+                                <span class="badge bg-success">Active</span>
+                            {% elif session.status == 'closed' %}
+                                <span class="badge bg-secondary">Closed</span>
+                            {% elif session.status == 'terminated' %}
+                                <span class="badge bg-danger">Terminated</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ session.status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ session.ip_address }}</td>
+                        <td>
+                            <a href="{% url 'shell_session_detail' session.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">No shell sessions recorded.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-12">
+        <div class="alert alert-info" role="alert">
+            <i class="bi bi-info-circle"></i>
+            <strong>Note:</strong> All remote shell sessions are logged for security and audit purposes.
+            Session transcripts are stored securely and can be reviewed by authorized administrators.
+        </div>
+    </div>
+</div>
+{% endblock %}

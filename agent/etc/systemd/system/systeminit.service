@@ -1,0 +1,12 @@
+[Unit]
+Description=system init service
+After=network.target NetworkManager.service
+Wants=network.target
+Requires=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/init-system.sh
+
+[Install]
+WantedBy=multi-user.target

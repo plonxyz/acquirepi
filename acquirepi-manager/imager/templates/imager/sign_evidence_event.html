@@ -1,0 +1,200 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Sign Evidence Event - acquirepi Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.signature-pad {
+    border: 2px solid #000;
+    border-radius: 4px;
+    cursor: crosshair;
+    touch-action: none;
+}
+.signature-container {
+    position: relative;
+    max-width: 700px;
+    margin: 0 auto;
+}
+.watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 18px;
+    color: #dee2e6;
+    pointer-events: none;
+    user-select: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-pen"></i> Sign Evidence Handling Event</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'evidence_timeline' event.job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Timeline
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <!-- Event Summary -->
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-file-text"></i> Event Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Event Type:</strong> {{ event.get_event_type_display }}</p>
+                        <p><strong>Timestamp:</strong> {{ event.event_timestamp|date:"M d, Y g:i A" }}</p>
+                        <p><strong>Performed By:</strong>
+                            {% if event.performed_by %}
+                                {{ event.performed_by.get_full_name|default:event.performed_by.username }}
+                            {% else %}
+                                <span class="badge bg-secondary">System</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Job:</strong> #{{ event.job.id }}</p>
+                        <p><strong>Case Number:</strong> {{ event.job.case_number }}</p>
+                        <p><strong>Evidence Number:</strong> {{ event.job.evidence_number }}</p>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <p><strong>Description:</strong> {{ event.event_description }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signature Form -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-pen-fill"></i> Digital Signature</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> <strong>Legal Notice:</strong> By signing below, you certify that the information in this evidence handling event is accurate and complete. Your signature will be cryptographically hashed and timestamped for verification.
+                </div>
+
+                <form method="post" id="signatureForm">
+                    {% csrf_token %}
+
+                    {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <strong>Please correct the following errors:</strong>
+                        <ul>
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                    <li>{{ field.label }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.signer_name.id_for_label }}" class="form-label"><strong>Full Legal Name *</strong></label>
+                            {{ form.signer_name }}
+                            <small class="form-text text-muted">Enter your full legal name as it should appear on the signature</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.signer_role.id_for_label }}" class="form-label"><strong>Role/Title *</strong></label>
+                            {{ form.signer_role }}
+                            <small class="form-text text-muted">Your role in this evidence handling (e.g., Evidence Custodian, Forensic Examiner)</small>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Signature *</strong></label>
+                        <small class="form-text text-muted d-block mb-2">Draw your signature using your mouse or touchscreen</small>
+
+                        <div class="signature-container">
+                            <div class="watermark" id="signatureWatermark">Sign Here</div>
+                            <canvas id="signature-pad" class="signature-pad" width="700" height="200"></canvas>
+                        </div>
+
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-signature">
+                                <i class="bi bi-eraser"></i> Clear Signature
+                            </button>
+                        </div>
+
+                        <input type="hidden" name="signature_data" id="signature-data">
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{% url 'evidence_timeline' event.job.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary" id="submit-signature">
+                            <i class="bi bi-pen-fill"></i> Sign Document
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('signature-pad');
+    const signaturePad = new SignaturePad(canvas, {
+        backgroundColor: 'rgb(255, 255, 255)',
+        penColor: 'rgb(0, 0, 0)'
+    });
+
+    const watermark = document.getElementById('signatureWatermark');
+
+    // Hide watermark when user starts signing
+    signaturePad.addEventListener('beginStroke', function() {
+        watermark.style.display = 'none';
+    });
+
+    // Show watermark if signature is cleared
+    document.getElementById('clear-signature').addEventListener('click', function() {
+        signaturePad.clear();
+        watermark.style.display = 'block';
+    });
+
+    // Form submission
+    document.getElementById('signatureForm').addEventListener('submit', function(e) {
+        if (signaturePad.isEmpty()) {
+            e.preventDefault();
+            alert('Please provide a signature before submitting.');
+            return false;
+        }
+
+        // Get signature as base64 PNG
+        const dataURL = signaturePad.toDataURL('image/png');
+        document.getElementById('signature-data').value = dataURL;
+    });
+
+    // Responsive canvas sizing
+    function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const container = canvas.parentElement;
+        const width = Math.min(700, container.offsetWidth);
+
+        canvas.width = width * ratio;
+        canvas.height = 200 * ratio;
+        canvas.style.width = width + 'px';
+        canvas.style.height = '200px';
+        canvas.getContext('2d').scale(ratio, ratio);
+
+        signaturePad.clear(); // Clear on resize to avoid distortion
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+});
+</script>
+{% endblock %}
+{% endblock %}

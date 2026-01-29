@@ -1,0 +1,905 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Create Imaging Job - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Create Imaging Job</h1>
+</div>
+
+<!-- Progress Indicator -->
+<div class="mb-4">
+    <div class="progress" style="height: 4px;">
+        <div class="progress-bar" id="wizardProgress" role="progressbar" style="width: 25%"></div>
+    </div>
+    <div class="d-flex justify-content-between mt-2">
+        <small class="step-label active" data-step="1">
+            <i class="bi bi-1-circle-fill"></i> Source Type
+        </small>
+        <small class="step-label" data-step="2">
+            <i class="bi bi-2-circle"></i> Agent & Device
+        </small>
+        <small class="step-label" data-step="3">
+            <i class="bi bi-3-circle"></i> Case Info
+        </small>
+        <small class="step-label" data-step="4">
+            <i class="bi bi-4-circle"></i> Review
+        </small>
+    </div>
+</div>
+
+<form method="post" id="jobWizardForm">
+    {% csrf_token %}
+
+    <!-- Step 1: Source Type Selection -->
+    <div class="wizard-step" id="step1">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-body p-5">
+                        <h4 class="mb-4 text-center">What are you imaging?</h4>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <input type="radio" class="btn-check" name="source_type" id="source_disk" value="disk" checked>
+                                <label class="card h-100 text-center p-4 source-type-card" for="source_disk">
+                                    <div class="card-body">
+                                        <i class="bi bi-hdd-rack display-1 text-primary mb-3"></i>
+                                        <h5 class="card-title">Disk / Hard Drive</h5>
+                                        <p class="card-text text-muted">
+                                            Forensic disk imaging with E01 format
+                                        </p>
+                                        <ul class="list-unstyled text-start mt-3 small">
+                                            <li><i class="bi bi-check-circle text-success"></i> Hard drives</li>
+                                            <li><i class="bi bi-check-circle text-success"></i> SSDs</li>
+                                            <li><i class="bi bi-check-circle text-success"></i> USB drives</li>
+                                            <li><i class="bi bi-check-circle text-success"></i> SD cards</li>
+                                        </ul>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="col-md-6">
+                                <input type="radio" class="btn-check" name="source_type" id="source_mobile" value="mobile">
+                                <label class="card h-100 text-center p-4 source-type-card" for="source_mobile">
+                                    <div class="card-body">
+                                        <i class="bi bi-phone display-1 text-success mb-3"></i>
+                                        <h5 class="card-title">Mobile Device</h5>
+                                        <p class="card-text text-muted">
+                                            iOS logical extraction
+                                        </p>
+                                        <ul class="list-unstyled text-start mt-3 small">
+                                            <li><i class="bi bi-apple"></i> iPhone/iPad</li>
+                                            <li><i class="bi bi-check-circle text-success"></i> Logical backup</li>
+                                            <li><i class="bi bi-info-circle text-info"></i> Device must be unlocked</li>
+                                        </ul>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Agent & Device Selection -->
+    <div class="wizard-step" id="step2" style="display: none;">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <h4 class="mb-4">Select Agent and Devices</h4>
+
+                        <!-- Agent Selection -->
+                        <div class="mb-4">
+                            <label for="agent" class="form-label fw-bold">
+                                <i class="bi bi-hdd-rack"></i> Forensic Agent *
+                            </label>
+                            <select class="form-select form-select-lg" name="agent" id="agent" required>
+                                <option value="">Choose an agent...</option>
+                                {% for agent in agents %}
+                                    <option value="{{ agent.id }}">
+                                        {{ agent.hostname }} - {{ agent.ip_address }}
+                                        (CPU: {{ agent.cpu_percent|default:"--" }}%, Mem: {{ agent.memory_percent|default:"--" }}%)
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            {% if not agents %}
+                                <div class="alert alert-warning mt-2">
+                                    <i class="bi bi-exclamation-triangle"></i> No approved agents online. Please approve agents first.
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Disk-specific selections -->
+                        <div id="disk_selections">
+                            <!-- Source Device (always required for disk imaging) -->
+                            <div class="mb-3">
+                                <label for="source_device" class="form-label fw-bold">
+                                    <i class="bi bi-hdd"></i> Source Device (Evidence) *
+                                </label>
+                                <select class="form-select" name="source_device_path" id="source_device">
+                                    <option value="">Select agent first...</option>
+                                </select>
+                                <small class="form-text text-muted" id="source_device_info"></small>
+                            </div>
+
+                            <!-- Storage Method -->
+                            <div class="mb-4">
+                                <label for="upload_method" class="form-label fw-bold">
+                                    <i class="bi bi-cloud-upload"></i> Where should the image be stored? *
+                                </label>
+                                <select class="form-select" name="upload_method" id="upload_method" required>
+                                    <option value="disk">Disk to Disk (Local destination device)</option>
+                                    <option value="nfs">NFS Network Share</option>
+                                </select>
+                                <small class="text-muted">Choose storage destination for the forensic image</small>
+                            </div>
+
+                            <!-- Destination Device (only for disk-to-disk) -->
+                            <div id="destination_device_section" class="mb-3">
+                                <label for="destination_device" class="form-label fw-bold">
+                                    <i class="bi bi-save"></i> Destination Device *
+                                </label>
+                                <select class="form-select" name="destination_device" id="destination_device">
+                                    <option value="">Select agent first...</option>
+                                </select>
+                                <small class="form-text text-muted" id="destination_device_info"></small>
+                            </div>
+
+                            <div id="disk_warning" class="alert alert-warning" style="display: none;">
+                                <i class="bi bi-exclamation-triangle"></i> <span id="disk_warning_text"></span>
+                            </div>
+
+                            <!-- NFS Configuration (shown when NFS is selected) -->
+                            <div id="nfs_config" class="mt-3" style="display: none;">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">NFS Server Configuration</h6>
+
+                                        <div class="mb-3">
+                                            <label for="nfs_server_select" class="form-label">Pre-configured Server</label>
+                                            <select class="form-select" id="nfs_server_select" name="nfs_server_config">
+                                                <option value="manual">Custom NFS Server...</option>
+                                                {% for nfs in nfs_servers %}
+                                                    <option value="{{ nfs.id }}"
+                                                            data-server="{{ nfs.server }}"
+                                                            data-share="{{ nfs.share }}"
+                                                            data-mount="{{ nfs.mount_point }}">
+                                                        {{ nfs.name }} ({{ nfs.server }}:{{ nfs.share }})
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-4 mb-2">
+                                                <label for="nfs_server" class="form-label">NFS Server *</label>
+                                                <input type="text" class="form-control" name="nfs_server" id="nfs_server" placeholder="192.168.1.100">
+                                            </div>
+                                            <div class="col-md-4 mb-2">
+                                                <label for="nfs_share" class="form-label">Share Path *</label>
+                                                <input type="text" class="form-control" name="nfs_share" id="nfs_share" placeholder="/exports/forensics">
+                                            </div>
+                                            <div class="col-md-4 mb-2">
+                                                <label for="nfs_mount_point" class="form-label">Mount Point</label>
+                                                <input type="text" class="form-control" name="nfs_mount_point" id="nfs_mount_point" value="/mnt/nfs-share">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mobile-specific selections -->
+                        <div id="mobile_selections" style="display: none;">
+                            <div class="mb-3">
+                                <label for="mobile_device" class="form-label fw-bold">
+                                    <i class="bi bi-phone"></i> Mobile Device *
+                                </label>
+                                <select class="form-select" name="mobile_device" id="mobile_device">
+                                    <option value="">Select agent first...</option>
+                                </select>
+                                <div id="no_mobile_devices_warning" class="alert alert-info mt-2" style="display: none;">
+                                    <i class="bi bi-info-circle"></i> No mobile devices connected to this agent.
+                                    Connect an iOS device via USB to see it here.
+                                </div>
+                            </div>
+
+                            <!-- Hidden data store for all mobile devices -->
+                            <div id="all_mobile_devices_data" style="display: none;">
+                                {% for device in mobile_devices %}
+                                <span class="mobile-device-option"
+                                      data-id="{{ device.id }}"
+                                      data-agent="{{ device.connected_agent.id }}"
+                                      data-device-type="{{ device.device_type }}"
+                                      data-name="{{ device.device_name|default:'Unknown' }}"
+                                      data-model="{{ device.model }}"
+                                      data-serial="{{ device.serial_number }}"></span>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Extraction Method</label>
+                                <select class="form-select" name="extraction_method" id="extraction_method">
+                                    <option value="logical">Logical Backup (Standard)</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    iTunes backup protocol. Device must be unlocked and trusted.
+                                </small>
+                            </div>
+
+                            <!-- iOS Encryption Option -->
+                            <div id="ios_options" style="display: none;">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="backup_encrypted" id="backup_encrypted">
+                                    <label class="form-check-label" for="backup_encrypted">
+                                        Enable encrypted backup (recommended for iOS)
+                                    </label>
+                                </div>
+                                <div id="backup_password_field" style="display: none;">
+                                    <label for="backup_password" class="form-label">Backup Password</label>
+                                    <input type="password" class="form-control" name="backup_password" id="backup_password">
+                                    <small class="text-muted">Required for encrypted backups</small>
+                                </div>
+                            </div>
+
+                            <!-- Storage Method for Mobile -->
+                            <div class="mb-4">
+                                <label for="mobile_upload_method" class="form-label fw-bold">
+                                    <i class="bi bi-cloud-upload"></i> Where should the backup be stored? *
+                                </label>
+                                <select class="form-select" name="mobile_upload_method" id="mobile_upload_method" required>
+                                    <option value="disk">Disk (Local destination device)</option>
+                                    <option value="nfs">NFS Network Share</option>
+                                </select>
+                                <small class="text-muted">Choose storage destination for the mobile backup</small>
+                            </div>
+
+                            <!-- Destination Device for Mobile Backup (disk mode) -->
+                            <div id="mobile_destination_section" class="mb-3 mt-3">
+                                <label for="mobile_destination_device" class="form-label fw-bold">
+                                    <i class="bi bi-save"></i> Destination Device (for backup) *
+                                </label>
+                                <select class="form-select" name="mobile_destination_device" id="mobile_destination_device">
+                                    <option value="">Select mobile device first...</option>
+                                </select>
+                                <small class="form-text text-muted">Select the disk where the mobile backup will be stored</small>
+                            </div>
+
+                            <!-- NFS Configuration for Mobile (shown when NFS is selected) -->
+                            <div id="mobile_nfs_config" class="mt-3" style="display: none;">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">NFS Server Configuration</h6>
+
+                                        <div class="mb-3">
+                                            <label for="mobile_nfs_server_select" class="form-label">Pre-configured Server</label>
+                                            <select class="form-select" id="mobile_nfs_server_select" name="mobile_nfs_server_config">
+                                                <option value="manual">Custom NFS Server...</option>
+                                                {% for nfs in nfs_servers %}
+                                                    <option value="{{ nfs.id }}"
+                                                            data-server="{{ nfs.server }}"
+                                                            data-share="{{ nfs.share }}"
+                                                            data-mount="{{ nfs.mount_point }}">
+                                                        {{ nfs.name }} ({{ nfs.server }}:{{ nfs.share }})
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-4 mb-2">
+                                                <label for="mobile_nfs_server" class="form-label">NFS Server *</label>
+                                                <input type="text" class="form-control" name="mobile_nfs_server" id="mobile_nfs_server" placeholder="192.168.1.100">
+                                            </div>
+                                            <div class="col-md-4 mb-2">
+                                                <label for="mobile_nfs_share" class="form-label">Share Path *</label>
+                                                <input type="text" class="form-control" name="mobile_nfs_share" id="mobile_nfs_share" placeholder="/exports/forensics">
+                                            </div>
+                                            <div class="col-md-4 mb-2">
+                                                <label for="mobile_nfs_mount_point" class="form-label">Mount Point</label>
+                                                <input type="text" class="form-control" name="mobile_nfs_mount_point" id="mobile_nfs_mount_point" value="/mnt/nfs-share">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Case Information -->
+    <div class="wizard-step" id="step3" style="display: none;">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <h4 class="mb-4">Case Information</h4>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="case_number" class="form-label fw-bold">Case Number *</label>
+                                <input type="text" class="form-control" name="case_number" id="case_number" required>
+                                <small class="text-muted e01-hint">E01 metadata field</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="evidence_number" class="form-label fw-bold">Evidence Number *</label>
+                                <input type="text" class="form-control" name="evidence_number" id="evidence_number" required>
+                                <small class="text-muted e01-hint">E01 metadata field</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="examiner_name" class="form-label fw-bold">Examiner Name *</label>
+                            <input type="text" class="form-control" name="examiner_name" id="examiner_name" required>
+                            <small class="text-muted e01-hint">E01 metadata field</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label fw-bold">Evidence Description *</label>
+                            <textarea class="form-control" name="description" id="description" rows="3" required></textarea>
+                            <small class="text-muted e01-hint">E01 metadata field</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="image_name" class="form-label fw-bold">Image/Backup Name *</label>
+                            <input type="text" class="form-control" name="image_name" id="image_name"
+                                   placeholder="evidence_001" required>
+                            <small class="text-muted">Filename (E01/backup extension added automatically)</small>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Review & Submit -->
+    <div class="wizard-step" id="step4" style="display: none;">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <h4 class="mb-4">Review Job Configuration</h4>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-3">Source</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th width="40%">Type:</th>
+                                        <td id="review_source_type">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Agent:</th>
+                                        <td id="review_agent">-</td>
+                                    </tr>
+                                    <tr id="review_source_device_row">
+                                        <th>Source Device:</th>
+                                        <td id="review_source_device">-</td>
+                                    </tr>
+                                    <tr id="review_mobile_device_row" style="display: none;">
+                                        <th>Mobile Device:</th>
+                                        <td id="review_mobile_device">-</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-3">Destination</h6>
+                                <table class="table table-sm">
+                                    <tr id="review_dest_device_row">
+                                        <th width="40%">Device:</th>
+                                        <td id="review_dest_device">-</td>
+                                    </tr>
+                                    <tr id="review_method_row">
+                                        <th>Method:</th>
+                                        <td id="review_method">Disk to Disk</td>
+                                    </tr>
+                                    <tr id="review_nfs_row" style="display: none;">
+                                        <th>NFS Server:</th>
+                                        <td id="review_nfs">-</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <h6 class="text-muted mb-3">Case Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <th width="20%">Case Number:</th>
+                                <td id="review_case_number">-</td>
+                            </tr>
+                            <tr>
+                                <th>Evidence Number:</th>
+                                <td id="review_evidence_number">-</td>
+                            </tr>
+                            <tr>
+                                <th>Examiner:</th>
+                                <td id="review_examiner">-</td>
+                            </tr>
+                            <tr>
+                                <th>Description:</th>
+                                <td id="review_description">-</td>
+                            </tr>
+                            <tr>
+                                <th>Image Name:</th>
+                                <td id="review_image_name">-</td>
+                            </tr>
+                        </table>
+
+                        <div class="alert alert-info mt-4">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Ready to create job?</strong> Click "Create Job" below to queue this imaging job.
+                            The agent will begin processing once submitted.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wizard Navigation -->
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-10">
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" id="prevBtn" style="display: none;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <button type="button" class="btn btn-primary" id="nextBtn">
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+                <button type="submit" class="btn btn-success" id="submitBtn" style="display: none;">
+                    <i class="bi bi-check-circle"></i> Create Job
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<style>
+.source-type-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid #dee2e6;
+}
+
+.source-type-card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+.btn-check:checked + .source-type-card {
+    border-color: #0d6efd;
+    background-color: #e7f3ff;
+    box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.25);
+}
+
+.step-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.step-label.active {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.wizard-step {
+    min-height: 400px;
+}
+</style>
+
+<script>
+let currentStep = 1;
+const totalSteps = 4;
+
+// Source type tracking
+let sourceType = 'disk';
+
+// Step navigation
+document.getElementById('nextBtn').addEventListener('click', function() {
+    if (validateStep(currentStep)) {
+        if (currentStep < totalSteps) {
+            showStep(currentStep + 1);
+        }
+    }
+});
+
+document.getElementById('prevBtn').addEventListener('click', function() {
+    if (currentStep > 1) {
+        showStep(currentStep - 1);
+    }
+});
+
+function showStep(step) {
+    // Hide all steps
+    document.querySelectorAll('.wizard-step').forEach(el => el.style.display = 'none');
+
+    // Show current step
+    document.getElementById('step' + step).style.display = 'block';
+    currentStep = step;
+
+    // Update progress bar
+    const progress = (step / totalSteps) * 100;
+    document.getElementById('wizardProgress').style.width = progress + '%';
+
+    // Update step labels
+    document.querySelectorAll('.step-label').forEach(el => {
+        el.classList.remove('active');
+        const stepNum = parseInt(el.dataset.step);
+        if (stepNum === step) {
+            el.classList.add('active');
+            el.innerHTML = el.innerHTML.replace('bi-' + stepNum + '-circle', 'bi-' + stepNum + '-circle-fill');
+        } else if (stepNum < step) {
+            el.innerHTML = el.innerHTML.replace('bi-' + stepNum + '-circle-fill', 'bi-' + stepNum + '-circle');
+            el.innerHTML = el.innerHTML.replace('bi-' + stepNum + '-circle', 'bi-check-circle-fill');
+        } else {
+            el.innerHTML = el.innerHTML.replace('bi-check-circle-fill', 'bi-' + stepNum + '-circle');
+            el.innerHTML = el.innerHTML.replace('bi-' + stepNum + '-circle-fill', 'bi-' + stepNum + '-circle');
+        }
+    });
+
+    // Update step 2 visibility based on source type
+    if (step === 2) {
+        console.log('showStep: step=2, sourceType=' + sourceType);
+        if (sourceType === 'disk') {
+            console.log('Showing disk_selections, hiding mobile_selections');
+            document.getElementById('disk_selections').style.display = 'block';
+            document.getElementById('mobile_selections').style.display = 'none';
+        } else {
+            console.log('Hiding disk_selections, showing mobile_selections');
+            document.getElementById('disk_selections').style.display = 'none';
+            document.getElementById('mobile_selections').style.display = 'block';
+        }
+    }
+
+    // Show/hide buttons
+    document.getElementById('prevBtn').style.display = step === 1 ? 'none' : 'inline-block';
+    document.getElementById('nextBtn').style.display = step === totalSteps ? 'none' : 'inline-block';
+    document.getElementById('submitBtn').style.display = step === totalSteps ? 'inline-block' : 'none';
+
+    // Update review step
+    if (step === 4) {
+        updateReview();
+    }
+}
+
+function validateStep(step) {
+    if (step === 1) {
+        return true; // Source type is always selected
+    } else if (step === 2) {
+        const agent = document.getElementById('agent').value;
+        if (!agent) {
+            alert('Please select an agent');
+            return false;
+        }
+
+        if (sourceType === 'disk') {
+            const source = document.getElementById('source_device').value;
+            const uploadMethod = document.getElementById('upload_method').value;
+
+            if (!source) {
+                alert('Please select a source device');
+                return false;
+            }
+
+            // Destination device only required for disk-to-disk
+            if (uploadMethod === 'disk') {
+                const dest = document.getElementById('destination_device').value;
+                if (!dest) {
+                    alert('Please select a destination device');
+                    return false;
+                }
+            }
+
+            // NFS validation
+            if (uploadMethod === 'nfs') {
+                const nfsServer = document.getElementById('nfs_server').value;
+                const nfsShare = document.getElementById('nfs_share').value;
+                if (!nfsServer || !nfsShare) {
+                    alert('Please configure NFS server and share path');
+                    return false;
+                }
+            }
+        } else if (sourceType === 'mobile') {
+            const mobile = document.getElementById('mobile_device').value;
+            if (!mobile) {
+                alert('Please select a mobile device');
+                return false;
+            }
+
+            const mobileUploadMethod = document.getElementById('mobile_upload_method').value;
+
+            // Disk mode - require destination device
+            if (mobileUploadMethod === 'disk') {
+                const destDevice = document.getElementById('mobile_destination_device').value;
+                if (!destDevice) {
+                    alert('Please select a destination device for the backup');
+                    return false;
+                }
+            }
+
+            // NFS mode - require NFS fields
+            if (mobileUploadMethod === 'nfs') {
+                const nfsServer = document.getElementById('mobile_nfs_server').value;
+                const nfsShare = document.getElementById('mobile_nfs_share').value;
+                if (!nfsServer || !nfsShare) {
+                    alert('Please configure NFS server and share path');
+                    return false;
+                }
+            }
+        }
+        return true;
+    } else if (step === 3) {
+        const required = ['case_number', 'evidence_number', 'examiner_name', 'description', 'image_name'];
+        for (let field of required) {
+            if (!document.getElementById(field).value.trim()) {
+                alert('Please fill in all required fields');
+                return false;
+            }
+        }
+        return true;
+    }
+    return true;
+}
+
+function updateReview() {
+    // Source type
+    document.getElementById('review_source_type').textContent =
+        sourceType === 'disk' ? 'Disk / Hard Drive' : 'Mobile Device';
+
+    // Agent
+    const agentSelect = document.getElementById('agent');
+    document.getElementById('review_agent').textContent =
+        agentSelect.options[agentSelect.selectedIndex]?.text || '-';
+
+    // Devices
+    if (sourceType === 'disk') {
+        document.getElementById('review_source_device_row').style.display = '';
+        document.getElementById('review_mobile_device_row').style.display = 'none';
+
+        const sourceSelect = document.getElementById('source_device');
+        document.getElementById('review_source_device').textContent =
+            sourceSelect.options[sourceSelect.selectedIndex]?.text || '-';
+
+        // Upload method
+        const method = document.getElementById('upload_method').value;
+        document.getElementById('review_method').textContent =
+            method === 'disk' ? 'Disk to Disk' : method === 'nfs' ? 'NFS Share' : method;
+
+        // Show destination device only for disk-to-disk
+        if (method === 'disk') {
+            document.getElementById('review_dest_device_row').style.display = '';
+            const destSelect = document.getElementById('destination_device');
+            document.getElementById('review_dest_device').textContent =
+                destSelect.options[destSelect.selectedIndex]?.text || '-';
+            document.getElementById('review_nfs_row').style.display = 'none';
+        } else if (method === 'nfs') {
+            document.getElementById('review_dest_device_row').style.display = 'none';
+            document.getElementById('review_nfs_row').style.display = '';
+            const nfsServer = document.getElementById('nfs_server').value;
+            const nfsShare = document.getElementById('nfs_share').value;
+            document.getElementById('review_nfs').textContent = nfsServer + ':' + nfsShare;
+        }
+    } else {
+        document.getElementById('review_source_device_row').style.display = 'none';
+        document.getElementById('review_mobile_device_row').style.display = '';
+
+        const mobileSelect = document.getElementById('mobile_device');
+        document.getElementById('review_mobile_device').textContent =
+            mobileSelect.options[mobileSelect.selectedIndex]?.text || '-';
+
+        // Mobile upload method
+        const mobileMethod = document.getElementById('mobile_upload_method').value;
+        document.getElementById('review_method_row').style.display = '';
+        document.getElementById('review_method').textContent =
+            mobileMethod === 'disk' ? 'Disk' : mobileMethod === 'nfs' ? 'NFS Share' : mobileMethod;
+
+        if (mobileMethod === 'disk') {
+            document.getElementById('review_dest_device_row').style.display = '';
+            const destSelect = document.getElementById('mobile_destination_device');
+            document.getElementById('review_dest_device').textContent =
+                destSelect.options[destSelect.selectedIndex]?.text || '-';
+            document.getElementById('review_nfs_row').style.display = 'none';
+        } else if (mobileMethod === 'nfs') {
+            document.getElementById('review_dest_device_row').style.display = 'none';
+            document.getElementById('review_nfs_row').style.display = '';
+            const nfsServer = document.getElementById('mobile_nfs_server').value;
+            const nfsShare = document.getElementById('mobile_nfs_share').value;
+            document.getElementById('review_nfs').textContent = nfsServer + ':' + nfsShare;
+        }
+    }
+
+    // Case info
+    document.getElementById('review_case_number').textContent =
+        document.getElementById('case_number').value || '-';
+    document.getElementById('review_evidence_number').textContent =
+        document.getElementById('evidence_number').value || '-';
+    document.getElementById('review_examiner').textContent =
+        document.getElementById('examiner_name').value || '-';
+    document.getElementById('review_description').textContent =
+        document.getElementById('description').value || '-';
+    document.getElementById('review_image_name').textContent =
+        document.getElementById('image_name').value || '-';
+}
+
+// Source type change
+document.querySelectorAll('input[name="source_type"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        sourceType = this.value;
+        console.log('Source type changed to: ' + sourceType + ', currentStep=' + currentStep);
+
+        // Show/hide E01 metadata hints based on source type
+        document.querySelectorAll('.e01-hint').forEach(hint => {
+            hint.style.display = sourceType === 'disk' ? 'block' : 'none';
+        });
+
+        if (currentStep >= 2) {
+            // Update step 2 visibility
+            if (sourceType === 'disk') {
+                document.getElementById('disk_selections').style.display = 'block';
+                document.getElementById('mobile_selections').style.display = 'none';
+            } else {
+                document.getElementById('disk_selections').style.display = 'none';
+                document.getElementById('mobile_selections').style.display = 'block';
+            }
+        }
+    });
+});
+
+// Agent change - load devices
+document.getElementById('agent').addEventListener('change', async function() {
+    const agentId = this.value;
+    if (!agentId) {
+        // Reset all device dropdowns
+        document.getElementById('source_device').innerHTML = '<option value="">Select agent first...</option>';
+        document.getElementById('destination_device').innerHTML = '<option value="">Select agent first...</option>';
+        document.getElementById('mobile_device').innerHTML = '<option value="">Select agent first...</option>';
+        document.getElementById('mobile_destination_device').innerHTML = '<option value="">Select agent first...</option>';
+        return;
+    }
+
+    // Fetch agent's available devices
+    try {
+        const response = await fetch(`/api/agents/${agentId}/`);
+        const data = await response.json();
+
+        // Populate source devices (for disk imaging)
+        const sourceSelect = document.getElementById('source_device');
+        const destSelect = document.getElementById('destination_device');
+        const mobileDestSelect = document.getElementById('mobile_destination_device');
+
+        sourceSelect.innerHTML = '<option value="">Select source device...</option>';
+        destSelect.innerHTML = '<option value="">Select destination device...</option>';
+        mobileDestSelect.innerHTML = '<option value="">Select destination device...</option>';
+
+        if (data.available_disks && data.available_disks.length > 0) {
+            data.available_disks.forEach(disk => {
+                const option = new Option(
+                    `${disk.name} (${disk.size_human})`,
+                    disk.device
+                );
+                sourceSelect.add(option.cloneNode(true));
+                destSelect.add(option.cloneNode(true));
+                mobileDestSelect.add(option);
+            });
+        } else {
+            sourceSelect.innerHTML = '<option value="">No disks detected</option>';
+            destSelect.innerHTML = '<option value="">No disks detected</option>';
+            mobileDestSelect.innerHTML = '<option value="">No disks detected</option>';
+        }
+    } catch (error) {
+        console.error('Failed to load disk devices:', error);
+    }
+
+    // Filter mobile devices for this agent
+    const mobileSelect = document.getElementById('mobile_device');
+    const noMobileWarning = document.getElementById('no_mobile_devices_warning');
+    mobileSelect.innerHTML = '<option value="">Select a mobile device...</option>';
+
+    const allDevices = document.querySelectorAll('#all_mobile_devices_data .mobile-device-option');
+    let deviceCount = 0;
+
+    allDevices.forEach(device => {
+        if (device.dataset.agent === agentId) {
+            const option = new Option(
+                `📱 ${device.dataset.name} - ${device.dataset.model} (${device.dataset.serial.substring(0, 15)}...)`,
+                device.dataset.id
+            );
+            option.dataset.deviceType = device.dataset.deviceType;
+            mobileSelect.add(option);
+            deviceCount++;
+        }
+    });
+
+    // Show/hide warning based on device count
+    if (deviceCount === 0) {
+        mobileSelect.innerHTML = '<option value="">No mobile devices on this agent</option>';
+        noMobileWarning.style.display = 'block';
+    } else {
+        noMobileWarning.style.display = 'none';
+    }
+});
+
+// Mobile device change - show iOS options if applicable
+document.getElementById('mobile_device').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption && selectedOption.dataset.deviceType === 'ios') {
+        document.getElementById('ios_options').style.display = 'block';
+    } else {
+        document.getElementById('ios_options').style.display = 'none';
+    }
+});
+
+// Encrypted backup toggle
+document.getElementById('backup_encrypted').addEventListener('change', function() {
+    document.getElementById('backup_password_field').style.display =
+        this.checked ? 'block' : 'none';
+});
+
+// Upload method change
+document.getElementById('upload_method').addEventListener('change', function() {
+    const isNfs = this.value === 'nfs';
+
+    // Show/hide NFS configuration
+    document.getElementById('nfs_config').style.display = isNfs ? 'block' : 'none';
+
+    // Show/hide destination device section (only needed for disk-to-disk)
+    document.getElementById('destination_device_section').style.display = isNfs ? 'none' : 'block';
+
+    // Clear destination device selection if switching to NFS
+    if (isNfs) {
+        document.getElementById('destination_device').value = '';
+    }
+});
+
+// NFS server preset selection
+document.getElementById('nfs_server_select')?.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.value !== 'custom') {
+        document.getElementById('nfs_server').value = selectedOption.dataset.server || '';
+        document.getElementById('nfs_share').value = selectedOption.dataset.share || '';
+        document.getElementById('nfs_mount_point').value = selectedOption.dataset.mount || '/mnt/nfs-share';
+    }
+});
+
+// Mobile upload method change
+document.getElementById('mobile_upload_method').addEventListener('change', function() {
+    const isNfs = this.value === 'nfs';
+
+    // Show/hide NFS configuration for mobile
+    document.getElementById('mobile_nfs_config').style.display = isNfs ? 'block' : 'none';
+
+    // Show/hide destination device section (only needed for disk mode)
+    document.getElementById('mobile_destination_section').style.display = isNfs ? 'none' : 'block';
+
+    // Clear destination device selection if switching to NFS
+    if (isNfs) {
+        document.getElementById('mobile_destination_device').value = '';
+    }
+});
+
+// Mobile NFS server preset selection
+document.getElementById('mobile_nfs_server_select')?.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.value !== 'manual') {
+        document.getElementById('mobile_nfs_server').value = selectedOption.dataset.server || '';
+        document.getElementById('mobile_nfs_share').value = selectedOption.dataset.share || '';
+        document.getElementById('mobile_nfs_mount_point').value = selectedOption.dataset.mount || '/mnt/nfs-share';
+    }
+});
+
+// Initialize
+showStep(1);
+</script>
+
+{% endblock %}

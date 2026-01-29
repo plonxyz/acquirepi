@@ -1,0 +1,15 @@
+Django==4.2.7
+djangorestframework==3.14.0
+channels==4.0.0
+channels-redis==4.1.0
+daphne==4.0.0
+whitenoise==6.6.0
+zeroconf==0.131.0
+pyyaml==6.0.1
+psycopg2-binary==2.9.11
+psutil==5.9.6
+requests==2.31.0
+paramiko==3.4.0
+netifaces==0.11.0
+Pillow>=10.4.0
+qrcode==8.0

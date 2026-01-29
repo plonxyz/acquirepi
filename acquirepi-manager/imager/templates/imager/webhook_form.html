@@ -1,0 +1,116 @@
+{% extends "imager/base.html" %}
+
+{% block title %}{% if webhook %}Edit{% else %}Create{% endif %} Webhook - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% if webhook %}Edit Webhook{% else %}Create Webhook{% endif %}</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Webhook Name *</label>
+                        <input type="text" class="form-control" id="name" name="name"
+                               value="{{ webhook.name|default:'' }}" required>
+                        <small class="form-text text-muted">Descriptive name for this webhook</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="webhook_type" class="form-label">Webhook Type *</label>
+                        <select class="form-select" id="webhook_type" name="webhook_type" required>
+                            {% for value, display in webhook_types %}
+                                <option value="{{ value }}" {% if webhook and webhook.webhook_type == value %}selected{% endif %}>
+                                    {{ display }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="url" class="form-label">Webhook URL *</label>
+                        <input type="url" class="form-control" id="url" name="url"
+                               value="{{ webhook.url|default:'' }}" required>
+                        <small class="form-text text-muted">The URL to send webhook notifications to</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Events to Trigger *</label>
+                        <div class="form-text mb-2">Select which events should trigger this webhook:</div>
+                        {% for value, display in event_choices %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="events"
+                                       value="{{ value }}" id="event_{{ value }}"
+                                       {% if webhook and value in webhook.events %}checked{% endif %}>
+                                <label class="form-check-label" for="event_{{ value }}">
+                                    {{ display }}
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
+                                   {% if not webhook or webhook.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">
+                                Active (webhook is enabled)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="send_progress_updates" name="send_progress_updates"
+                                   {% if webhook and webhook.send_progress_updates %}checked{% endif %}>
+                            <label class="form-check-label" for="send_progress_updates">
+                                Send progress updates (can be noisy)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="progress_interval" class="form-label">Progress Interval (%)</label>
+                        <input type="number" class="form-control" id="progress_interval" name="progress_interval"
+                               value="{{ webhook.progress_interval|default:10 }}" min="1" max="100">
+                        <small class="form-text text-muted">Send progress updates every N percent</small>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> {% if webhook %}Update{% else %}Create{% endif %} Webhook
+                        </button>
+                        <a href="{% url 'webhook_list' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Webhook Help</h5>
+            </div>
+            <div class="card-body">
+                <h6>Slack</h6>
+                <p><small>Create an incoming webhook at <code>https://api.slack.com/apps</code> and paste the URL here.</small></p>
+
+                <h6>Microsoft Teams</h6>
+                <p><small>Add an "Incoming Webhook" connector to your Teams channel and use the provided URL.</small></p>
+
+                <h6>Google Chat</h6>
+                <p><small>Create a webhook in your Google Chat space and paste the URL here.</small></p>
+
+                <h6>Generic</h6>
+                <p><small>Any endpoint that accepts JSON POST requests.</small></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

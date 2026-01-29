@@ -1,0 +1,229 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Agents - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Agents</h1>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>IP Address</th>
+                <th>MAC Address</th>
+                <th>Hardware</th>
+                <th>Status</th>
+                <th>Capabilities</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="agents-table-body">
+            {% for agent in agents %}
+            <tr data-agent-id="{{ agent.id }}">
+                <td><a href="{% url 'agent_detail' agent.id %}">{{ agent.hostname }}</a></td>
+                <td>{{ agent.ip_address }}</td>
+                <td><code>{{ agent.mac_address }}</code></td>
+                <td>{{ agent.hardware_model|default:"-" }}</td>
+                <td class="agent-status">
+                    {% with display_status=agent.get_display_status %}
+                        {% if display_status == 'online' %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Online</span>
+                        {% elif display_status == 'pending' %}
+                            <span class="badge bg-warning"><i class="bi bi-clock"></i> Pending</span>
+                        {% elif display_status == 'imaging' %}
+                            <span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Imaging</span>
+                        {% elif display_status == 'denied' %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Denied</span>
+                        {% elif display_status == 'offline' %}
+                            <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Offline</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ display_status|title }}</span>
+                        {% endif %}
+                    {% endwith %}
+                </td>                <td>
+                    {% if agent.supports_disk %}<span class="badge bg-secondary">Disk</span>{% endif %}
+                    {% if agent.supports_nfs %}<span class="badge bg-secondary">NFS</span>{% endif %}
+                </td>
+                <td>{{ agent.last_seen|timesince }} ago</td>
+                <td>
+                    {% if agent.status == 'pending' %}
+                        <form method="post" action="{% url 'agent_approve' agent.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <i class="bi bi-check"></i> Approve
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'agent_deny' agent.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="bi bi-x"></i> Deny
+                            </button>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'agent_detail' agent.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> View
+                        </a>
+                    {% endif %}
+                    <form method="post" action="{% url 'agent_delete' agent.id %}" style="display: inline;"
+                          onsubmit="return confirm('Are you sure you want to delete agent {{ agent.hostname }}? This will also delete all associated jobs.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <p class="mt-2">No agents found. Waiting for agents to connect...</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // WebSocket connection for real-time agent status updates
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/dashboard/`;
+    let socket;
+    let reconnectInterval = 3000;
+    let reconnectTimer;
+
+    function connectWebSocket() {
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = function(e) {
+            console.log('WebSocket connected for agent list updates');
+        };
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+
+            if (data.type === 'agent_update') {
+                updateAgentRow(data.agent);
+            }
+        };
+
+        socket.onclose = function(e) {
+            console.log('WebSocket closed. Reconnecting...');
+            reconnectTimer = setTimeout(connectWebSocket, reconnectInterval);
+        };
+
+        socket.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            socket.close();
+        };
+    }
+
+    function updateAgentRow(agent) {
+        const row = document.querySelector(`#agents-table-body tr[data-agent-id="${agent.id}"]`);
+
+        if (!row) {
+            // Agent not in current view
+            return;
+        }
+
+        // Update status
+        const statusCell = row.querySelector('.agent-status');
+        if (statusCell && agent.status) {
+            let badgeHtml = '';
+
+            switch(agent.status) {
+                case 'online':
+                    badgeHtml = '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Online</span>';
+                    break;
+                case 'pending':
+                    badgeHtml = '<span class="badge bg-warning"><i class="bi bi-clock"></i> Pending</span>';
+                    break;
+                case 'imaging':
+                    badgeHtml = '<span class="badge bg-info"><i class="bi bi-arrow-repeat"></i> Imaging</span>';
+                    break;
+                case 'denied':
+                    badgeHtml = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Denied</span>';
+                    break;
+                case 'offline':
+                    badgeHtml = '<span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Offline</span>';
+                    break;
+                default:
+                    const statusText = agent.status.charAt(0).toUpperCase() + agent.status.slice(1);
+                    badgeHtml = `<span class="badge bg-secondary">${statusText}</span>`;
+            }
+
+            statusCell.innerHTML = badgeHtml;
+        }
+    }
+
+    // AJAX fallback polling
+    let pollingInterval;
+    let wsConnected = false;
+
+    function startPolling() {
+        if (pollingInterval) return;
+        console.log('Starting AJAX polling fallback');
+        pollingInterval = setInterval(fetchAgentData, 5000);
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+    }
+
+    function fetchAgentData() {
+        fetch('{% url "agent_list_api" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.agents) {
+                    data.agents.forEach(agent => updateAgentRow(agent));
+                }
+            })
+            .catch(error => console.error('Polling error:', error));
+    }
+
+    // Modified WebSocket handlers
+    socket.onopen = function(e) {
+        console.log('WebSocket connected for agent list updates');
+        wsConnected = true;
+        stopPolling();
+    };
+
+    socket.onclose = function(e) {
+        console.log('WebSocket closed. Starting polling fallback...');
+        wsConnected = false;
+        startPolling();
+        reconnectTimer = setTimeout(connectWebSocket, reconnectInterval);
+    };
+
+    // Connect on page load
+    connectWebSocket();
+
+    // Start polling as initial fallback
+    setTimeout(() => {
+        if (!wsConnected) {
+            startPolling();
+        }
+    }, 2000);
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        stopPolling();
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+        }
+        if (socket) {
+            socket.close();
+        }
+    });
+</script>
+{% endblock %}

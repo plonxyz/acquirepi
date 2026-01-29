@@ -1,0 +1,226 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}QA Review - Job #{{ job.id }} - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-clipboard-check"></i> Quality Assurance Review</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'job_detail' job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Job
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Job #{{ job.id }} - {{ job.case_number }} / {{ job.evidence_number }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <strong>Please correct the following errors:</strong>
+                            <ul>
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <li>{{ field.label }}: {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <!-- Review Status -->
+                    <div class="mb-4">
+                        <label for="{{ form.review_status.id_for_label }}" class="form-label"><strong>Review Status</strong></label>
+                        {{ form.review_status }}
+                    </div>
+
+                    <hr>
+
+                    <!-- Hash Verification -->
+                    <h5 class="mb-3">Hash Verification</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {{ form.hash_verification_checked }}
+                                <label class="form-check-label" for="{{ form.hash_verification_checked.id_for_label }}">
+                                    Verification performed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.hash_verification_passed }}
+                                <label class="form-check-label" for="{{ form.hash_verification_passed.id_for_label }}">
+                                    Verification passed
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.hash_verification_notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.hash_verification_notes }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Metadata Review -->
+                    <h5 class="mb-3">Metadata Review</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {{ form.metadata_verified }}
+                                <label class="form-check-label" for="{{ form.metadata_verified.id_for_label }}">
+                                    Verification performed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.metadata_complete }}
+                                <label class="form-check-label" for="{{ form.metadata_complete.id_for_label }}">
+                                    Metadata complete
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.metadata_notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.metadata_notes }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Documentation Review -->
+                    <h5 class="mb-3">Documentation Review</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {{ form.documentation_checked }}
+                                <label class="form-check-label" for="{{ form.documentation_checked.id_for_label }}">
+                                    Verification performed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.documentation_complete }}
+                                <label class="form-check-label" for="{{ form.documentation_complete.id_for_label }}">
+                                    Documentation complete
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.documentation_notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.documentation_notes }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Chain of Custody -->
+                    <h5 class="mb-3">Chain of Custody</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {{ form.chain_of_custody_checked }}
+                                <label class="form-check-label" for="{{ form.chain_of_custody_checked.id_for_label }}">
+                                    Verification performed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.chain_of_custody_intact }}
+                                <label class="form-check-label" for="{{ form.chain_of_custody_intact.id_for_label }}">
+                                    Chain of custody intact
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.chain_of_custody_notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.chain_of_custody_notes }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Write Blocker Review -->
+                    <h5 class="mb-3">Write Blocker Review</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {{ form.write_blocker_checked }}
+                                <label class="form-check-label" for="{{ form.write_blocker_checked.id_for_label }}">
+                                    Verification performed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.write_blocker_verified }}
+                                <label class="form-check-label" for="{{ form.write_blocker_verified.id_for_label }}">
+                                    Write blocker verified
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.write_blocker_notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.write_blocker_notes }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Image Integrity -->
+                    <h5 class="mb-3">Image Integrity</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {{ form.image_integrity_checked }}
+                                <label class="form-check-label" for="{{ form.image_integrity_checked.id_for_label }}">
+                                    Verification performed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                {{ form.image_integrity_verified }}
+                                <label class="form-check-label" for="{{ form.image_integrity_verified.id_for_label }}">
+                                    Image integrity verified
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.image_integrity_notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ form.image_integrity_notes }}
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Overall Review -->
+                    <h5 class="mb-3">Overall Review</h5>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.all_checks_passed }}
+                            <label class="form-check-label" for="{{ form.all_checks_passed.id_for_label }}">
+                                <strong>All checks passed</strong>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.reviewer_comments.id_for_label }}" class="form-label">Reviewer Comments</label>
+                        {{ form.reviewer_comments }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.corrections_required.id_for_label }}" class="form-label">Corrections Required</label>
+                        {{ form.corrections_required }}
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'job_detail' job.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Review
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

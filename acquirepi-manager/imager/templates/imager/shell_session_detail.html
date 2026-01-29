@@ -1,0 +1,136 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Shell Session Details - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-terminal"></i> Shell Session Details</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'shell_session_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Sessions
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Session Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Session ID:</dt>
+                    <dd class="col-sm-8"><code>{{ session.session_id }}</code></dd>
+
+                    <dt class="col-sm-4">User:</dt>
+                    <dd class="col-sm-8">{{ session.user.username|default:"Unknown" }}</dd>
+
+                    <dt class="col-sm-4">Agent:</dt>
+                    <dd class="col-sm-8">
+                        <a href="{% url 'agent_detail' session.agent.id %}">
+                            {{ session.agent.hostname }} ({{ session.agent.ip_address }})
+                        </a>
+                    </dd>
+
+                    <dt class="col-sm-4">Status:</dt>
+                    <dd class="col-sm-8">
+                        {% if session.status == 'active' %}
+                            <span class="badge bg-success">Active</span>
+                        {% elif session.status == 'closed' %}
+                            <span class="badge bg-secondary">Closed</span>
+                        {% elif session.status == 'terminated' %}
+                            <span class="badge bg-danger">Terminated</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ session.status|title }}</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4">Started:</dt>
+                    <dd class="col-sm-8">{{ session.started_at }}</dd>
+
+                    {% if session.ended_at %}
+                    <dt class="col-sm-4">Ended:</dt>
+                    <dd class="col-sm-8">{{ session.ended_at }}</dd>
+
+                    <dt class="col-sm-4">Duration:</dt>
+                    <dd class="col-sm-8">{{ session.ended_at|timesince:session.started_at }}</dd>
+                    {% endif %}
+
+                    <dt class="col-sm-4">Client IP:</dt>
+                    <dd class="col-sm-8">{{ session.ip_address }}</dd>
+
+                    <dt class="col-sm-4">User Agent:</dt>
+                    <dd class="col-sm-8"><small>{{ session.user_agent|default:"-" }}</small></dd>
+
+                    <dt class="col-sm-4">Last Activity:</dt>
+                    <dd class="col-sm-8">{{ session.last_activity }} ({{ session.last_activity|timesince }} ago)</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-file-earmark-text"></i> Session Stats</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-6">Command Count:</dt>
+                    <dd class="col-sm-6">{{ session.command_count }}</dd>
+
+                    <dt class="col-sm-6">Transcript Available:</dt>
+                    <dd class="col-sm-6">
+                        {% if session.transcript_path %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Yes</span>
+                        {% else %}
+                            <span class="badge bg-warning"><i class="bi bi-x-circle"></i> No</span>
+                        {% endif %}
+                    </dd>
+
+                    {% if session.transcript_path %}
+                    <dt class="col-sm-6">Transcript Path:</dt>
+                    <dd class="col-sm-6"><code>{{ session.transcript_path }}</code></dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if transcript %}
+<div class="card">
+    <div class="card-header">
+        <h5><i class="bi bi-file-text"></i> Session Transcript</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info" role="alert">
+            <i class="bi bi-info-circle"></i>
+            This is a playback of the complete session. Input from the user is shown in <span class="badge bg-primary">blue</span>,
+            output from the remote system is shown in <span class="badge bg-secondary">gray</span>.
+        </div>
+
+        <div style="background-color: #000; color: #fff; padding: 15px; border-radius: 5px; max-height: 600px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px;">
+            {% for entry in transcript %}
+                {% if entry.type == 'input' %}
+                    <div style="color: #61afef;">
+                        <strong>[{{ entry.timestamp }}]</strong> <span style="color: #98c379;">→ INPUT:</span> {{ entry.data }}
+                    </div>
+                {% elif entry.type == 'output' %}
+                    <div style="color: #abb2bf;">
+                        <pre style="margin: 0; color: inherit; background: none; border: none; padding: 0;">{{ entry.data }}</pre>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle"></i>
+    <strong>No transcript available</strong> - The session transcript could not be loaded or was not saved.
+</div>
+{% endif %}
+
+{% endblock %}

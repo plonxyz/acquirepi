@@ -1,0 +1,108 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}{% if ssh_key %}Edit{% else %}Add{% endif %} SSH Key - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-key"></i>
+        {% if ssh_key %}Edit SSH Key: {{ ssh_key.name }}{% else %}Add New SSH Key{% endif %}
+    </h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <form method="post">
+            {% csrf_token %}
+
+            <!-- Basic Information -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="bi bi-tag"></i> Identification</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name *</label>
+                        <input type="text" class="form-control" name="name" id="name"
+                               value="{{ ssh_key.name|default:'' }}" required
+                               placeholder="e.g., Evidence Server 1">
+                        <small class="form-text text-muted">A descriptive name to identify this SSH key</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SSH Public Key -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="bi bi-shield-check"></i> SSH Public Key</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="public_key" class="form-label">Public Key *</label>
+                        <textarea class="form-control font-monospace" name="public_key" id="public_key"
+                                  rows="3" required placeholder="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... user@host
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFq... user@host">{{ ssh_key.public_key|default:'' }}</textarea>
+                        <small class="form-text text-muted">
+                            Paste your SSH public key(s) here. Multiple keys can be added (one per line).
+                            This will be added to the agent's <code>~/.ssh/authorized_keys</code> file.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Notice -->
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Purpose:</strong> These public keys will allow you to SSH into the acquirepi agents for remote management and troubleshooting.
+                <ul class="mb-0 mt-2">
+                    <li>Public keys are safe to store and share</li>
+                    <li>Keep the corresponding private key secure on your workstation</li>
+                    <li>You can add multiple public keys (one per line)</li>
+                    <li>Keys are deployed to agents when jobs are created</li>
+                </ul>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'sshkey_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> {% if ssh_key %}Update{% else %}Create{% endif %} SSH Key
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Help Panel -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-question-circle"></i> Quick Help</h5>
+            </div>
+            <div class="card-body">
+                <h6>Generating SSH Keys</h6>
+                <p>On your workstation:</p>
+                <pre class="bg-light p-2"><code># ED25519 (recommended)
+ssh-keygen -t ed25519 -C "your@email.com"
+
+# RSA (legacy)
+ssh-keygen -t rsa -b 4096 -C "your@email.com"</code></pre>
+
+                <h6 class="mt-3">Getting Your Public Key</h6>
+                <pre class="bg-light p-2"><code># Display public key
+cat ~/.ssh/id_ed25519.pub
+
+# Or for RSA
+cat ~/.ssh/id_rsa.pub</code></pre>
+
+                <h6 class="mt-3">Testing Connection</h6>
+                <p>After deploying the job:</p>
+                <pre class="bg-light p-2"><code># SSH into agent
+ssh pi@agent-ip-address</code></pre>
+
+                <h6 class="mt-3">Multiple Keys</h6>
+                <p>You can add multiple public keys (one per line) to allow multiple users or machines to access the agents.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

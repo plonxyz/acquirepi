@@ -1,0 +1,23 @@
+[Unit]
+Description=AcquirePi Forensic Integrity Monitor
+After=network.target acquirepi-manager.service
+Wants=acquirepi-manager.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/acquirepi-manager
+ExecStart=/opt/acquirepi-manager/venv/bin/python manage.py integrity_monitor --daemon --quiet
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/acquirepi/integrity-monitor.log
+StandardError=append:/var/log/acquirepi/integrity-monitor.log
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/acquirepi-manager /var/log/acquirepi
+
+[Install]
+WantedBy=multi-user.target

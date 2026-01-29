@@ -1,0 +1,101 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Upload Photos - Event #{{ event.id }} - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-camera"></i> Upload Evidence Photos</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'evidence_timeline' event.job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Timeline
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5>Event: {{ event.event_type }} - {{ event.event_timestamp|date:"M d, Y g:i A" }}</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Description:</strong> {{ event.event_description }}</p>
+                <p><strong>Job:</strong> #{{ event.job.id }} - {{ event.job.case_number }} / {{ event.job.evidence_number }}</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Upload Photos</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Select Photos</label>
+                        <small class="form-text text-muted d-block mb-2">Upload photos documenting this evidence handling event</small>
+                        <div id="photo-upload-container">
+                            <div class="photo-upload-item mb-3">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <input type="file" class="form-control" name="photos" accept="image/*" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" name="photo_captions" placeholder="Caption (optional)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-photo-btn">
+                            <i class="bi bi-plus-circle"></i> Add Another Photo
+                        </button>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'evidence_timeline' event.job.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Upload Photos
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addPhotoBtn = document.getElementById('add-photo-btn');
+    const photoContainer = document.getElementById('photo-upload-container');
+
+    addPhotoBtn.addEventListener('click', function() {
+        const newPhotoItem = document.createElement('div');
+        newPhotoItem.className = 'photo-upload-item mb-3';
+        newPhotoItem.innerHTML = `
+            <div class="row">
+                <div class="col-md-8">
+                    <input type="file" class="form-control" name="photos" accept="image/*">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="photo_captions" placeholder="Caption (optional)">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-sm btn-danger remove-photo-btn">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        photoContainer.appendChild(newPhotoItem);
+
+        // Add event listener to the remove button
+        newPhotoItem.querySelector('.remove-photo-btn').addEventListener('click', function() {
+            newPhotoItem.remove();
+        });
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

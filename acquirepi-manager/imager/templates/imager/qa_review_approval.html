@@ -1,0 +1,195 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Final QA Approval - Job #{{ job.id }} - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-award"></i> Final QA Approval</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'job_detail' job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Job
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <!-- Review Summary Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5><i class="bi bi-info-circle"></i> Current Review Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-6">Review Status:</dt>
+                            <dd class="col-sm-6">
+                                <span class="badge bg-{{ review.review_status|default:'secondary' }}">
+                                    {{ review.get_review_status_display }}
+                                </span>
+                            </dd>
+
+                            <dt class="col-sm-6">Reviewed By:</dt>
+                            <dd class="col-sm-6">
+                                {% if review.reviewed_by %}
+                                    {{ review.reviewed_by.get_full_name|default:review.reviewed_by.username }}
+                                {% else %}
+                                    <span class="text-muted">Not assigned</span>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-6">Review Started:</dt>
+                            <dd class="col-sm-6">{{ review.review_started_at|default:"-" }}</dd>
+
+                            <dt class="col-sm-6">Review Completed:</dt>
+                            <dd class="col-sm-6">{{ review.review_completed_at|default:"-" }}</dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <dl class="row">
+                            <dt class="col-sm-6">All Checks Passed:</dt>
+                            <dd class="col-sm-6">
+                                {% if review.all_checks_passed %}
+                                    <span class="badge bg-success">Yes</span>
+                                {% else %}
+                                    <span class="badge bg-warning">No</span>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-6">Hash Verification:</dt>
+                            <dd class="col-sm-6">
+                                {% if review.hash_verification_passed %}
+                                    <i class="bi bi-check-circle text-success"></i>
+                                {% else %}
+                                    <i class="bi bi-x-circle text-danger"></i>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-6">Metadata Complete:</dt>
+                            <dd class="col-sm-6">
+                                {% if review.metadata_complete %}
+                                    <i class="bi bi-check-circle text-success"></i>
+                                {% else %}
+                                    <i class="bi bi-x-circle text-danger"></i>
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-6">Documentation Complete:</dt>
+                            <dd class="col-sm-6">
+                                {% if review.documentation_complete %}
+                                    <i class="bi bi-check-circle text-success"></i>
+                                {% else %}
+                                    <i class="bi bi-x-circle text-danger"></i>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+
+                {% if review.reviewer_comments %}
+                <hr>
+                <p><strong>Reviewer Comments:</strong></p>
+                <p>{{ review.reviewer_comments }}</p>
+                {% endif %}
+
+                {% if review.corrections_required %}
+                <hr>
+                <div class="alert alert-warning">
+                    <strong>Corrections Required:</strong>
+                    <p>{{ review.corrections_required }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Final Approval Form -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5><i class="bi bi-award"></i> Final Approval</h5>
+            </div>
+            <div class="card-body">
+                {% if review.final_approval %}
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i>
+                    <strong>This job has been approved!</strong><br>
+                    Approved by: {{ review.final_approval_by.get_full_name|default:review.final_approval_by.username }}<br>
+                    Date: {{ review.final_approval_date }}
+                    {% if review.final_approval_notes %}
+                    <hr>
+                    <p><strong>Notes:</strong> {{ review.final_approval_notes }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <strong>Please correct the following errors:</strong>
+                            <ul>
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <li>{{ field.label }}: {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            {{ form.final_approval }}
+                            <label class="form-check-label" for="{{ form.final_approval.id_for_label }}">
+                                <strong>Grant Final Approval</strong>
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            By checking this box, you confirm that all review items have been verified and the forensic imaging process meets required standards.
+                        </small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.final_approval_notes.id_for_label }}" class="form-label">Final Approval Notes</label>
+                        {{ form.final_approval_notes }}
+                    </div>
+
+                    <hr>
+
+                    <h6 class="mb-3">Corrections Tracking</h6>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.corrections_made }}
+                            <label class="form-check-label" for="{{ form.corrections_made.id_for_label }}">
+                                Corrections have been made
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.corrections_description.id_for_label }}" class="form-label">Corrections Description</label>
+                        {{ form.corrections_description }}
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.re_review_required }}
+                            <label class="form-check-label" for="{{ form.re_review_required.id_for_label }}">
+                                Re-review required
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'job_detail' job.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-award"></i> Save Approval Decision
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

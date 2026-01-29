@@ -1,0 +1,167 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Log Evidence Event - Job #{{ job.id }} - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-journal-plus"></i> Log Evidence Handling Event</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'evidence_timeline' job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Timeline
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Job #{{ job.id }} - {{ job.case_number }} / {{ job.evidence_number }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <strong>Please correct the following errors:</strong>
+                            <ul>
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <li>{{ field.label }}: {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.event_type.id_for_label }}" class="form-label"><strong>Event Type *</strong></label>
+                            {{ form.event_type }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.location.id_for_label }}" class="form-label">Location</label>
+                            {{ form.location }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.event_description.id_for_label }}" class="form-label"><strong>Event Description *</strong></label>
+                        {{ form.event_description }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.evidence_condition.id_for_label }}" class="form-label">Evidence Condition</label>
+                        {{ form.evidence_condition }}
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3">Witnesses</h5>
+                    <div class="mb-3">
+                        <label for="{{ form.witnesses.id_for_label }}" class="form-label">System Users (hold Ctrl/Cmd to select multiple)</label>
+                        {{ form.witnesses }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.witness_names.id_for_label }}" class="form-label">Non-System Witnesses</label>
+                        {{ form.witness_names }}
+                        <small class="form-text text-muted">One name per line for external witnesses</small>
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3">Custody Transfer (if applicable)</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.transferred_from.id_for_label }}" class="form-label">Transferred From</label>
+                            {{ form.transferred_from }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.transferred_to.id_for_label }}" class="form-label">Transferred To</label>
+                            {{ form.transferred_to }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.transfer_reason.id_for_label }}" class="form-label">Transfer Reason</label>
+                        {{ form.transfer_reason }}
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">Additional Notes</label>
+                        {{ form.notes }}
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3"><i class="bi bi-camera"></i> Evidence Photos (Optional)</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Upload Photos</label>
+                        <small class="form-text text-muted d-block mb-2">Attach photos of evidence, devices, seals, write-blockers, etc.</small>
+                        <div id="photo-upload-container">
+                            <div class="photo-upload-item mb-3">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <input type="file" class="form-control" name="photos" accept="image/*">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" name="photo_captions" placeholder="Caption (optional)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-photo-btn">
+                            <i class="bi bi-plus-circle"></i> Add Another Photo
+                        </button>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'evidence_timeline' job.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Log Event
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addPhotoBtn = document.getElementById('add-photo-btn');
+    const photoContainer = document.getElementById('photo-upload-container');
+
+    addPhotoBtn.addEventListener('click', function() {
+        const newPhotoItem = document.createElement('div');
+        newPhotoItem.className = 'photo-upload-item mb-3';
+        newPhotoItem.innerHTML = `
+            <div class="row">
+                <div class="col-md-8">
+                    <input type="file" class="form-control" name="photos" accept="image/*">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control" name="photo_captions" placeholder="Caption (optional)">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-sm btn-danger remove-photo-btn">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        photoContainer.appendChild(newPhotoItem);
+
+        // Add event listener to the remove button
+        newPhotoItem.querySelector('.remove-photo-btn').addEventListener('click', function() {
+            newPhotoItem.remove();
+        });
+    });
+});
+</script>
+{% endblock %}

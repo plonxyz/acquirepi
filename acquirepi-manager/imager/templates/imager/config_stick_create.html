@@ -1,0 +1,436 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Create Config Stick - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-usb-drive"></i> Create Config Stick</h1>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Configuration Generator</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Air-Gapped Acquisition Mode:</strong> Create a configuration stick for standalone disk imaging or mobile device backup when agents cannot connect to the manager.
+                </div>
+
+                <form method="post" id="configForm">
+                    {% csrf_token %}
+
+                    <!-- Case Information -->
+                    <h6 class="text-muted mb-3 mt-4">Case Information</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="image_name" class="form-label">Image Name *</label>
+                            <input type="text" class="form-control" name="image_name" id="image_name"
+                                   placeholder="evidence_001" required>
+                            <small class="text-muted">Name for the E01 image file</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="case_number" class="form-label">Case Number *</label>
+                            <input type="text" class="form-control" name="case_number" id="case_number" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="evidence_number" class="form-label">Evidence Number *</label>
+                            <input type="text" class="form-control" name="evidence_number" id="evidence_number" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="examiner_name" class="form-label">Examiner Name *</label>
+                            <input type="text" class="form-control" name="examiner_name" id="examiner_name" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" name="description" id="description" rows="2"
+                                  placeholder="Evidence description..."></textarea>
+                    </div>
+
+                    <!-- Extraction Type -->
+                    <h6 class="text-muted mb-3 mt-4">Extraction Type</h6>
+                    <div class="mb-3">
+                        <label for="extraction_type" class="form-label">Source Type *</label>
+                        <select class="form-select" name="extraction_type" id="extraction_type" required>
+                            <option value="disk" selected>Disk Imaging (E01)</option>
+                            <option value="mobile">Mobile Device (iOS Backup)</option>
+                        </select>
+                    </div>
+
+                    <!-- Mobile Configuration -->
+                    <div id="mobile_config" style="display: none;">
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="bi bi-phone"></i> iOS Backup Configuration</h6>
+                                <div class="mb-3">
+                                    <label for="extraction_method" class="form-label">Extraction Method</label>
+                                    <select class="form-select" name="extraction_method" id="extraction_method">
+                                        <option value="logical" selected>Logical Backup</option>
+                                    </select>
+                                    <small class="text-muted">Creates an iTunes-style backup of the iOS device</small>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" name="backup_encrypted" id="backup_encrypted" value="true">
+                                    <label class="form-check-label" for="backup_encrypted">
+                                        Encrypted Backup
+                                    </label>
+                                    <small class="d-block text-muted">Encrypted backups include keychain, health data, and more sensitive information</small>
+                                </div>
+                                <div id="backup_password_section" style="display: none;">
+                                    <div class="mb-3">
+                                        <label for="backup_password" class="form-label">Backup Password</label>
+                                        <input type="password" class="form-control" name="backup_password" id="backup_password"
+                                               placeholder="Enter encryption password">
+                                        <small class="text-muted">Password used to encrypt the backup. Store this securely!</small>
+                                    </div>
+                                </div>
+                                <div class="alert alert-info small mb-0">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Note:</strong> The iOS device must be unlocked and trusted on the agent before backup can start.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Method -->
+                    <h6 class="text-muted mb-3 mt-4">Storage Method</h6>
+                    <div class="mb-3">
+                        <label for="upload_method" class="form-label">Upload Method *</label>
+                        <select class="form-select" name="upload_method" id="upload_method" required>
+                            <option value="disk" selected>Disk to Disk (Local)</option>
+                            <option value="nfs">NFS Network Share</option>
+                        </select>
+                    </div>
+
+                    <!-- NFS Configuration -->
+                    <div id="nfs_config" style="display: none;">
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">NFS Configuration</h6>
+                                {% if nfs_servers %}
+                                <div class="mb-3">
+                                    <label for="nfs_preset" class="form-label">Pre-configured Server</label>
+                                    <select class="form-select" id="nfs_preset">
+                                        <option value="">Custom...</option>
+                                        {% for nfs in nfs_servers %}
+                                        <option value="{{ nfs.id }}"
+                                                data-server="{{ nfs.server }}"
+                                                data-share="{{ nfs.share }}"
+                                                data-mount="{{ nfs.mount_point }}">
+                                            {{ nfs.name }} ({{ nfs.server }}:{{ nfs.share }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endif %}
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        <label for="nfs_server" class="form-label">NFS Server</label>
+                                        <input type="text" class="form-control" name="nfs_server" id="nfs_server"
+                                               placeholder="192.168.1.100">
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label for="nfs_share" class="form-label">Share Path</label>
+                                        <input type="text" class="form-control" name="nfs_share" id="nfs_share"
+                                               placeholder="/exports/forensics">
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label for="nfs_mount_point" class="form-label">Mount Point</label>
+                                        <input type="text" class="form-control" name="nfs_mount_point" id="nfs_mount_point"
+                                               value="/mnt/nfs-share">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Optional: Network Configuration -->
+                    <h6 class="text-muted mb-3 mt-4">
+                        <a data-bs-toggle="collapse" href="#networkOptions" role="button" aria-expanded="false">
+                            <i class="bi bi-chevron-down"></i> Optional: Network Configuration
+                        </a>
+                    </h6>
+                    <div class="collapse" id="networkOptions">
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-2">
+                                        <label for="wifi_ssid" class="form-label">WiFi SSID</label>
+                                        <input type="text" class="form-control" name="wifi_ssid" id="wifi_ssid">
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <label for="wifi_password" class="form-label">WiFi Password</label>
+                                        <input type="password" class="form-control" name="wifi_password" id="wifi_password">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Optional: SSH Keys -->
+                    <h6 class="text-muted mb-3">
+                        <a data-bs-toggle="collapse" href="#sshOptions" role="button" aria-expanded="false">
+                            <i class="bi bi-chevron-down"></i> Optional: SSH Keys
+                        </a>
+                    </h6>
+                    <div class="collapse" id="sshOptions">
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <label for="ssh_keys" class="form-label">SSH Public Keys</label>
+                                <textarea class="form-control font-monospace" name="ssh_keys" id="ssh_keys" rows="4"
+                                          placeholder="ssh-rsa AAAA... user@host"></textarea>
+                                <small class="text-muted">One key per line</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <!-- USB Device Selection -->
+                    <h6 class="text-muted mb-3">
+                        <i class="bi bi-usb-symbol"></i> Direct USB Preparation
+                    </h6>
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-end">
+                                <div class="col-md-8 mb-2">
+                                    <label for="usb_device" class="form-label">USB Device</label>
+                                    <div class="input-group">
+                                        <select class="form-select" name="usb_device" id="usb_device">
+                                            <option value="">-- Select USB Device --</option>
+                                            {% for device in usb_devices %}
+                                            <option value="{{ device.path }}" {% if device.mounted %}disabled{% endif %}>
+                                                {{ device.path }} - {{ device.model }} ({{ device.size }}){% if device.mounted %} [MOUNTED]{% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn btn-outline-secondary" id="refreshDevices" title="Refresh device list">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">Plug in a USB stick and click refresh to detect it</small>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <button type="button" class="btn btn-success w-100" id="prepareStick" disabled>
+                                        <i class="bi bi-usb-drive"></i> Prepare Config Stick
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning mt-3 mb-0 small">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Warning:</strong> This will format the selected USB device and erase all data on it!
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status/Progress Area -->
+                    <div id="prepareStatus" class="mb-3" style="display: none;">
+                        <div class="alert" id="statusAlert">
+                            <span id="statusMessage"></span>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Dashboard
+                        </a>
+                        <button type="submit" class="btn btn-primary" formaction="{% url 'config_stick_download' %}">
+                            <i class="bi bi-download"></i> Download YAML Only
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions Sidebar -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Method</h6>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li class="mb-2">Fill in the case information</li>
+                    <li class="mb-2">Plug a USB stick into the manager</li>
+                    <li class="mb-2">Click <strong>Refresh</strong> to detect it</li>
+                    <li class="mb-2">Select the USB device</li>
+                    <li class="mb-2">Click <strong>Prepare Config Stick</strong></li>
+                    <li>Insert the config stick into the Pi</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0"><i class="bi bi-book"></i> Manual Method</h6>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0 small">
+                    <li class="mb-2">Click <strong>Download YAML Only</strong></li>
+                    <li class="mb-2">Format USB as <strong>FAT32</strong></li>
+                    <li class="mb-2">Set UUID to <code>937C-8BC2</code>:
+                        <pre class="bg-dark text-light p-2 mt-1 mb-0" style="font-size: 0.7rem;">mkfs.vfat -F 32 /dev/sdX1
+printf "\xC2\x8B\x7C\x93" | \
+dd bs=1 seek=67 count=4 \
+conv=notrunc of=/dev/sdX1</pre>
+                    </li>
+                    <li class="mb-2">Copy <code>Imager_config.yaml</code> to USB</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Important</h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>UUID must be exact:</strong> <code>937C-8BC2</code></p>
+                <p class="mb-0">The agent looks for this specific UUID to identify the config stick. The "Prepare" button sets this automatically.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Show/hide mobile config based on extraction type
+document.getElementById('extraction_type').addEventListener('change', function() {
+    const isMobile = this.value === 'mobile';
+    document.getElementById('mobile_config').style.display = isMobile ? 'block' : 'none';
+
+    // Update image name hint based on type
+    const imageNameHint = document.querySelector('#image_name + small');
+    if (imageNameHint) {
+        imageNameHint.textContent = isMobile ? 'Name for the backup folder' : 'Name for the E01 image file';
+    }
+});
+
+// Show/hide backup password based on encryption checkbox
+document.getElementById('backup_encrypted').addEventListener('change', function() {
+    document.getElementById('backup_password_section').style.display = this.checked ? 'block' : 'none';
+    // Make password required if encryption is enabled
+    document.getElementById('backup_password').required = this.checked;
+});
+
+// Show/hide NFS config based on upload method
+document.getElementById('upload_method').addEventListener('change', function() {
+    document.getElementById('nfs_config').style.display = this.value === 'nfs' ? 'block' : 'none';
+});
+
+// NFS preset selection
+document.getElementById('nfs_preset')?.addEventListener('change', function() {
+    const option = this.options[this.selectedIndex];
+    if (option.value) {
+        document.getElementById('nfs_server').value = option.dataset.server || '';
+        document.getElementById('nfs_share').value = option.dataset.share || '';
+        document.getElementById('nfs_mount_point').value = option.dataset.mount || '/mnt/nfs-share';
+    }
+});
+
+// Enable/disable prepare button based on USB device selection
+document.getElementById('usb_device').addEventListener('change', function() {
+    document.getElementById('prepareStick').disabled = !this.value;
+});
+
+// Refresh USB devices
+document.getElementById('refreshDevices').addEventListener('click', function() {
+    const btn = this;
+    const select = document.getElementById('usb_device');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch('{% url "config_stick_list_devices" %}')
+        .then(response => response.json())
+        .then(data => {
+            select.innerHTML = '<option value="">-- Select USB Device --</option>';
+            data.devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.path;
+                option.textContent = `${device.path} - ${device.model} (${device.size})`;
+                if (device.mounted) {
+                    option.textContent += ' [MOUNTED]';
+                    option.disabled = true;
+                }
+                select.appendChild(option);
+            });
+            document.getElementById('prepareStick').disabled = true;
+        })
+        .catch(err => {
+            console.error('Error refreshing devices:', err);
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
+        });
+});
+
+// Prepare config stick
+document.getElementById('prepareStick').addEventListener('click', function() {
+    const form = document.getElementById('configForm');
+    const device = document.getElementById('usb_device').value;
+
+    if (!device) {
+        alert('Please select a USB device');
+        return;
+    }
+
+    // Validate required fields
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    if (!confirm(`WARNING: This will format ${device} and erase ALL data on it!\n\nAre you sure you want to continue?`)) {
+        return;
+    }
+
+    const btn = this;
+    const statusDiv = document.getElementById('prepareStatus');
+    const statusAlert = document.getElementById('statusAlert');
+    const statusMessage = document.getElementById('statusMessage');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparing...';
+    statusDiv.style.display = 'block';
+    statusAlert.className = 'alert alert-info';
+    statusMessage.innerHTML = '<i class="bi bi-hourglass-split"></i> Formatting and preparing config stick...';
+
+    const formData = new FormData(form);
+
+    fetch('{% url "config_stick_prepare" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusAlert.className = 'alert alert-success';
+            statusMessage.innerHTML = '<i class="bi bi-check-circle"></i> ' + data.message;
+        } else {
+            statusAlert.className = 'alert alert-danger';
+            statusMessage.innerHTML = '<i class="bi bi-x-circle"></i> Error: ' + data.error;
+        }
+    })
+    .catch(err => {
+        statusAlert.className = 'alert alert-danger';
+        statusMessage.innerHTML = '<i class="bi bi-x-circle"></i> Error: ' + err.message;
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-usb-drive"></i> Prepare Config Stick';
+        // Refresh device list
+        document.getElementById('refreshDevices').click();
+    });
+});
+</script>
+
+{% endblock %}

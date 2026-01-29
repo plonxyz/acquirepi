@@ -1,0 +1,301 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Terminal - {{ agent.hostname }} - acquirepi Manager{% endblock %}
+
+{% block extra_head %}
+<!-- xterm.js CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<style>
+    #terminal-container {
+        width: 100%;
+        height: calc(100vh - 200px);
+        background-color: #000;
+        padding: 10px;
+    }
+    #terminal {
+        height: 100%;
+    }
+    .terminal-header {
+        background-color: #2c3e50;
+        color: #ecf0f1;
+        padding: 10px 15px;
+        border-radius: 5px 5px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .terminal-status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #95a5a6;
+        transition: background-color 0.3s;
+    }
+    .status-indicator.connected {
+        background-color: #2ecc71;
+    }
+    .status-indicator.disconnected {
+        background-color: #e74c3c;
+    }
+    .terminal-wrapper {
+        border: 1px solid #34495e;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-terminal"></i> Remote Shell Access
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'agent_detail' agent.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Agent
+        </a>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Security Notice:</strong> This session is being recorded for audit purposes.
+            All commands and outputs are logged. Agent: <strong>{{ agent.hostname }}</strong> ({{ agent.ip_address }})
+        </div>
+    </div>
+</div>
+
+<div class="terminal-wrapper">
+    <div class="terminal-header">
+        <div class="terminal-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="status-text">Connecting...</span>
+        </div>
+        <div>
+            <button class="btn btn-sm btn-light" id="clear-terminal" title="Clear terminal">
+                <i class="bi bi-trash"></i> Clear
+            </button>
+            <button class="btn btn-sm btn-danger" id="disconnect-btn" title="Disconnect">
+                <i class="bi bi-x-circle"></i> Disconnect
+            </button>
+        </div>
+    </div>
+    <div id="terminal-container">
+        <div id="terminal"></div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Session Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Agent:</dt>
+                    <dd class="col-sm-9">{{ agent.hostname }} ({{ agent.ip_address }})</dd>
+
+                    <dt class="col-sm-3">SSH User:</dt>
+                    <dd class="col-sm-9">{{ agent.ssh_username|default:"pi" }}</dd>
+
+                    <dt class="col-sm-3">Session Started:</dt>
+                    <dd class="col-sm-9" id="session-start-time">-</dd>
+
+                    <dt class="col-sm-3">Duration:</dt>
+                    <dd class="col-sm-9" id="session-duration">-</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- xterm.js and addons -->
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.js"></script>
+
+<script>
+    // Initialize terminal
+    const terminal = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        theme: {
+            background: '#000000',
+            foreground: '#ffffff',
+            cursor: '#ffffff',
+            selection: 'rgba(255, 255, 255, 0.3)',
+            black: '#000000',
+            red: '#e06c75',
+            green: '#98c379',
+            yellow: '#d19a66',
+            blue: '#61afef',
+            magenta: '#c678dd',
+            cyan: '#56b6c2',
+            white: '#abb2bf',
+            brightBlack: '#5c6370',
+            brightRed: '#e06c75',
+            brightGreen: '#98c379',
+            brightYellow: '#d19a66',
+            brightBlue: '#61afef',
+            brightMagenta: '#c678dd',
+            brightCyan: '#56b6c2',
+            brightWhite: '#ffffff'
+        },
+        allowProposedApi: true
+    });
+
+    // Add fit addon for responsive sizing
+    const fitAddon = new FitAddon.FitAddon();
+    terminal.loadAddon(fitAddon);
+
+    // Add web links addon
+    const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+    terminal.loadAddon(webLinksAddon);
+
+    // Open terminal in DOM
+    terminal.open(document.getElementById('terminal'));
+    fitAddon.fit();
+
+    // WebSocket connection
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/terminal/{{ agent.id }}/`;
+    let socket;
+    let sessionStartTime = null;
+    let durationInterval = null;
+
+    function connect() {
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = function(e) {
+            console.log('WebSocket connected');
+            updateStatus('connected', 'Connected');
+            sessionStartTime = new Date();
+            document.getElementById('session-start-time').textContent = sessionStartTime.toLocaleString();
+
+            // Start duration timer
+            durationInterval = setInterval(updateDuration, 1000);
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'output') {
+                terminal.write(data.data);
+            }
+        };
+
+        socket.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            terminal.writeln('\r\n\x1b[1;31mConnection error occurred\x1b[0m\r\n');
+            updateStatus('disconnected', 'Error');
+        };
+
+        socket.onclose = function(event) {
+            console.log('WebSocket closed');
+            terminal.writeln('\r\n\x1b[1;33mConnection closed\x1b[0m\r\n');
+            updateStatus('disconnected', 'Disconnected');
+
+            if (durationInterval) {
+                clearInterval(durationInterval);
+            }
+
+            // Disable input
+            terminal.options.disableStdin = true;
+        };
+    }
+
+    // Handle terminal input
+    terminal.onData(function(data) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'input',
+                data: data
+            }));
+        }
+    });
+
+    // Handle terminal resize
+    terminal.onResize(function(size) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'resize',
+                cols: size.cols,
+                rows: size.rows
+            }));
+        }
+    });
+
+    // Window resize handler
+    window.addEventListener('resize', function() {
+        fitAddon.fit();
+    });
+
+    // Clear terminal button
+    document.getElementById('clear-terminal').addEventListener('click', function() {
+        terminal.clear();
+    });
+
+    // Disconnect button
+    document.getElementById('disconnect-btn').addEventListener('click', function() {
+        if (confirm('Are you sure you want to disconnect?')) {
+            if (socket) {
+                socket.close();
+            }
+            setTimeout(function() {
+                window.location.href = '{% url "agent_detail" agent.id %}';
+            }, 500);
+        }
+    });
+
+    // Update connection status
+    function updateStatus(status, text) {
+        const indicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+
+        indicator.className = 'status-indicator ' + status;
+        statusText.textContent = text;
+    }
+
+    // Update session duration
+    function updateDuration() {
+        if (!sessionStartTime) return;
+
+        const now = new Date();
+        const diff = Math.floor((now - sessionStartTime) / 1000); // seconds
+
+        const hours = Math.floor(diff / 3600);
+        const minutes = Math.floor((diff % 3600) / 60);
+        const seconds = diff % 60;
+
+        const formatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        document.getElementById('session-duration').textContent = formatted;
+    }
+
+    // Warn before closing
+    window.addEventListener('beforeunload', function(e) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            e.preventDefault();
+            e.returnValue = 'You have an active SSH session. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+
+    // Connect on page load
+    connect();
+
+    // Focus terminal
+    terminal.focus();
+</script>
+{% endblock %}

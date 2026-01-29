@@ -1,0 +1,185 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Mobile Devices - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-phone"></i> Mobile Devices</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-check-circle"></i> Connected</h5>
+                <p class="card-text display-6">{{ connected_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-arrow-down-circle"></i> Extracting</h5>
+                <p class="card-text display-6">{{ extracting_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-secondary">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-x-circle"></i> Disconnected</h5>
+                <p class="card-text display-6">{{ disconnected_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-phone"></i> Total Devices</h5>
+                <p class="card-text display-6">{{ devices.count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device type summary -->
+<div class="row mb-4">
+    <div class="col-md-12 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-apple"></i> iOS Devices</h6>
+                <p class="display-6 mb-0">{{ ios_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Devices table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">All Mobile Devices</h5>
+    </div>
+    <div class="card-body">
+        {% if devices %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Type</th>
+                            <th>Device Name</th>
+                            <th>Model</th>
+                            <th>Serial / UDID</th>
+                            <th>OS Version</th>
+                            <th>Battery</th>
+                            <th>Agent</th>
+                            <th>Last Seen</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for device in devices %}
+                        <tr>
+                            <td>
+                                {% if device.connection_status == 'connected' %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Connected</span>
+                                {% elif device.connection_status == 'extracting' %}
+                                    <span class="badge bg-primary"><i class="bi bi-arrow-down-circle"></i> Extracting</span>
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Disconnected</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <i class="bi bi-apple"></i> iOS
+                            </td>
+                            <td>
+                                <strong>{{ device.device_name|default:"Unknown" }}</strong>
+                                {% if device.is_locked %}
+                                    <i class="bi bi-lock-fill text-warning" title="Device is locked"></i>
+                                {% endif %}
+                                {% if device.is_jailbroken %}
+                                    <i class="bi bi-exclamation-triangle text-danger" title="Jailbroken/Rooted"></i>
+                                {% endif %}
+                            </td>
+                            <td>{{ device.model|default:"-" }}</td>
+                            <td>
+                                <small class="text-muted">{{ device.serial_number|truncatechars:20 }}</small>
+                            </td>
+                            <td>{{ device.os_version|default:"-" }}</td>
+                            <td>
+                                {% if device.battery_level %}
+                                    <div class="progress" style="width: 60px; height: 20px;">
+                                        {% if device.battery_level >= 50 %}
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ device.battery_level }}%">
+                                                {{ device.battery_level }}%
+                                            </div>
+                                        {% elif device.battery_level >= 20 %}
+                                            <div class="progress-bar bg-warning" role="progressbar" style="width: {{ device.battery_level }}%">
+                                                {{ device.battery_level }}%
+                                            </div>
+                                        {% else %}
+                                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ device.battery_level }}%">
+                                                {{ device.battery_level }}%
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if device.connected_agent %}
+                                    <a href="{% url 'agent_detail' device.connected_agent.id %}">
+                                        {{ device.connected_agent.hostname }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ device.last_seen|timesince }} ago</small>
+                            </td>
+                            <td>
+                                <a href="{% url 'mobile_device_detail' device.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> Details
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No mobile devices detected yet. Connect an iOS device to an agent to see it here.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Info box -->
+<div class="alert alert-info mt-4">
+    <h5><i class="bi bi-lightbulb"></i> How iOS Device Detection Works</h5>
+    <ul class="mb-0">
+        <li>Connect an iPhone or iPad via USB to any acquirepi agent</li>
+        <li>The agent automatically detects the device within 5 seconds</li>
+        <li>Device information is extracted using libimobiledevice/pymobiledevice3</li>
+        <li>Devices appear here and can be selected for forensic extraction</li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh page every 10 seconds to show new devices
+setTimeout(function() {
+    location.reload();
+}, 10000);
+</script>
+{% endblock %}

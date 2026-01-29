@@ -1,0 +1,141 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Custody Transfer - Job #{{ job.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-qr-code-scan"></i> Evidence Custody Transfer
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> <strong>QR Code Scanned Successfully!</strong><br>
+                        You are logging a custody transfer for this evidence.
+                    </div>
+
+                    <!-- Evidence Details -->
+                    <div class="mb-4">
+                        <h5><i class="bi bi-box-seam"></i> Evidence Information</h5>
+                        <table class="table table-bordered table-sm">
+                            <tr>
+                                <th width="30%">Case Number</th>
+                                <td>{{ job.case_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>Evidence Number</th>
+                                <td>{{ job.evidence_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>Job ID</th>
+                                <td>#{{ job.id }}</td>
+                            </tr>
+                            <tr>
+                                <th>Status</th>
+                                <td>
+                                    {% if job.status == 'completed' %}
+                                        <span class="badge bg-success">{{ job.get_status_display }}</span>
+                                    {% elif job.status == 'failed' %}
+                                        <span class="badge bg-danger">{{ job.get_status_display }}</span>
+                                    {% elif job.status == 'in_progress' %}
+                                        <span class="badge bg-primary">{{ job.get_status_display }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ job.get_status_display }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Created By</th>
+                                <td>{{ job.created_by.username|default:"N/A" }}</td>
+                            </tr>
+                            <tr>
+                                <th>Created At</th>
+                                <td>{{ job.created_at|date:"Y-m-d H:i:s" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Custody Transfer Form -->
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <h5 class="mb-3"><i class="bi bi-pencil-square"></i> Log Custody Transfer</h5>
+
+                        <div class="mb-3">
+                            <label for="event_type" class="form-label">Transfer Type <span class="text-danger">*</span></label>
+                            <select class="form-select" id="event_type" name="event_type" required>
+                                <option value="checked_out">Check Out (Taking Custody)</option>
+                                <option value="checked_in">Check In (Returning to Storage)</option>
+                                <option value="transferred">Transfer to Another Person</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Current Location</label>
+                            <input type="text" class="form-control" id="location" name="location"
+                                   placeholder="e.g., Evidence Room 2, Lab Station 3">
+                            <small class="form-text text-muted">Where is the evidence currently located?</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description / Notes <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="description" name="description" rows="3" required
+                                      placeholder="Describe the reason for this transfer and any observations...">Evidence scanned via QR code for custody verification</textarea>
+                            <small class="form-text text-muted">Include any relevant details about the transfer or condition of evidence.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Transfer Logged By</label>
+                            <input type="text" class="form-control" value="{{ request.user.username }}" disabled>
+                            <small class="form-text text-muted">Your username will be recorded with this transfer.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Timestamp</label>
+                            <input type="text" class="form-control" value="{{ now|date:'Y-m-d H:i:s' }}" disabled>
+                            <small class="form-text text-muted">Current time will be recorded.</small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle"></i> Log Custody Transfer
+                            </button>
+                            <a href="{% url 'job_detail' job.id %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Cancel & Return to Job Details
+                            </a>
+                        </div>
+                    </form>
+
+                    <!-- Recent Events -->
+                    {% if job.handling_events.all %}
+                    <hr class="my-4">
+                    <h5><i class="bi bi-clock-history"></i> Recent Custody Events</h5>
+                    <div class="list-group">
+                        {% for event in job.handling_events.all|slice:":5" %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ event.get_event_type_display }}</h6>
+                                <small class="text-muted">{{ event.event_timestamp|date:"Y-m-d H:i" }}</small>
+                            </div>
+                            <p class="mb-1 small">{{ event.event_description }}</p>
+                            <small class="text-muted">By: {% if event.performed_by %}{{ event.performed_by.username }}{% else %}System{% endif %}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-2">
+                        <a href="{% url 'evidence_timeline' job.id %}" class="btn btn-sm btn-outline-primary">
+                            View Full Timeline
+                        </a>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

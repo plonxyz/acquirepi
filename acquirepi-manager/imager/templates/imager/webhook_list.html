@@ -1,0 +1,82 @@
+{% extends "imager/base.html" %}
+
+{% block title %}Webhooks - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Webhook Configurations</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'webhook_create' %}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Webhook
+        </a>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Events</th>
+                <th>Status</th>
+                <th>Success</th>
+                <th>Failures</th>
+                <th>Last Triggered</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for webhook in webhooks %}
+            <tr>
+                <td><strong>{{ webhook.name }}</strong></td>
+                <td><span class="badge bg-secondary">{{ webhook.get_webhook_type_display }}</span></td>
+                <td><small>{{ webhook.events|join:", " }}</small></td>
+                <td>
+                    {% if webhook.is_active %}
+                        <span class="badge bg-success">Active</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                </td>
+                <td><span class="badge bg-success">{{ webhook.success_count }}</span></td>
+                <td>
+                    {% if webhook.failure_count > 0 %}
+                        <span class="badge bg-danger">{{ webhook.failure_count }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ webhook.failure_count }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if webhook.last_triggered %}
+                        {{ webhook.last_triggered|timesince }} ago
+                    {% else %}
+                        <span class="text-muted">Never</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'webhook_test' webhook.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-send"></i> Test
+                    </a>
+                    <a href="{% url 'webhook_edit' webhook.id %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <form method="post" action="{% url 'webhook_delete' webhook.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this webhook?')">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                    No webhooks configured. <a href="{% url 'webhook_create' %}">Create one now</a>.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,414 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}{{ device.device_name }} - Mobile Device - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="bi bi-apple"></i>
+        {{ device.device_name|default:"iOS Device" }}
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'mobile_device_list' %}" class="btn btn-sm btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Connection status alert -->
+<div class="row mb-4">
+    <div class="col-12">
+        {% if device.connection_status == 'connected' %}
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> <strong>Device Connected</strong> - Ready for extraction
+            </div>
+        {% elif device.connection_status == 'extracting' %}
+            <div class="alert alert-primary">
+                <i class="bi bi-arrow-down-circle"></i> <strong>Extraction In Progress</strong>
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                <i class="bi bi-x-circle"></i> <strong>Device Disconnected</strong> - Last seen {{ device.last_seen|timesince }} ago
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Device overview -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Device Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 40%;">Device Type</th>
+                        <td>
+                            <i class="bi bi-apple"></i> iOS ({{ device.ios_device_class|default:"iPhone/iPad" }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Device Name</th>
+                        <td><strong>{{ device.device_name|default:"Unknown" }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Manufacturer</th>
+                        <td>{{ device.manufacturer|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Model</th>
+                        <td>{{ device.model|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Product Type</th>
+                        <td><code>{{ device.product_type|default:"-" }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>Serial Number</th>
+                        <td><code>{{ device.serial_number }}</code></td>
+                    </tr>
+                    {% if device.device_type == 'ios' %}
+                    <tr>
+                        <th>UDID</th>
+                        <td><code>{{ device.udid|default:"-" }}</code></td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>OS Version</th>
+                        <td>{{ device.os_version|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Build Version</th>
+                        <td><code>{{ device.build_version|default:"-" }}</code></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-shield-check"></i> Security Status</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 40%;">Lock Status</th>
+                        <td>
+                            {% if device.is_locked %}
+                                <span class="badge bg-warning"><i class="bi bi-lock-fill"></i> Locked</span>
+                            {% else %}
+                                <span class="badge bg-success"><i class="bi bi-unlock-fill"></i> Unlocked</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Encryption</th>
+                        <td>
+                            {% if device.is_encrypted %}
+                                <span class="badge bg-info"><i class="bi bi-shield-fill-check"></i> Encrypted</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Not Encrypted</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Jailbreak/Root</th>
+                        <td>
+                            {% if device.is_jailbroken %}
+                                <span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Jailbroken/Rooted</span>
+                            {% else %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Not Jailbroken</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Physical characteristics -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-telephone"></i> Physical Identifiers</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 40%;">IMEI</th>
+                        <td><code>{{ device.imei|default:"-" }}</code></td>
+                    </tr>
+                    {% if device.imei2 %}
+                    <tr>
+                        <th>IMEI 2 (Dual-SIM)</th>
+                        <td><code>{{ device.imei2 }}</code></td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>Phone Number</th>
+                        <td>{{ device.phone_number|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>SIM Card (ICCID)</th>
+                        <td><code>{{ device.iccid|default:"-" }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>WiFi MAC</th>
+                        <td><code>{{ device.wifi_mac|default:"-" }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>Bluetooth MAC</th>
+                        <td><code>{{ device.bluetooth_mac|default:"-" }}</code></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-battery-charging"></i> Battery & Storage</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 40%;">Battery Level</th>
+                        <td>
+                            {% if device.battery_level %}
+                                <div class="progress" style="width: 200px; height: 25px;">
+                                    {% if device.battery_level >= 50 %}
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ device.battery_level }}%">
+                                            {{ device.battery_level }}%
+                                        </div>
+                                    {% elif device.battery_level >= 20 %}
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: {{ device.battery_level }}%">
+                                            {{ device.battery_level }}%
+                                        </div>
+                                    {% else %}
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: {{ device.battery_level }}%">
+                                            {{ device.battery_level }}%
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Battery State</th>
+                        <td>{{ device.battery_state|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Storage Total</th>
+                        <td>
+                            {% if storage_total_gb %}
+                                {{ storage_total_gb }} GB
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Storage Used</th>
+                        <td>
+                            {% if storage_used_gb %}
+                                {{ storage_used_gb }} GB
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Storage Free</th>
+                        <td>
+                            {% if storage_free_gb %}
+                                {{ storage_free_gb }} GB
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if storage_usage_percent %}
+                    <tr>
+                        <th>Usage</th>
+                        <td>
+                            <div class="progress" style="width: 200px;">
+                                <div class="progress-bar" role="progressbar" style="width: {{ storage_usage_percent }}%">
+                                    {{ storage_usage_percent }}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connection info -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-hdd-rack"></i> Connection Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 20%;">Connected Agent</th>
+                        <td>
+                            {% if device.connected_agent %}
+                                <a href="{% url 'agent_detail' device.connected_agent.id %}">
+                                    {{ device.connected_agent.hostname }}
+                                </a>
+                                ({{ device.connected_agent.ip_address }})
+                            {% else %}
+                                <span class="text-muted">Not connected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Connection Status</th>
+                        <td>
+                            {% if device.connection_status == 'connected' %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Connected</span>
+                            {% elif device.connection_status == 'extracting' %}
+                                <span class="badge bg-primary"><i class="bi bi-arrow-down-circle"></i> Extracting</span>
+                            {% else %}
+                                <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Disconnected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>First Seen</th>
+                        <td>{{ device.first_seen }}</td>
+                    </tr>
+                    <tr>
+                        <th>Last Seen</th>
+                        <td>{{ device.last_seen }} ({{ device.last_seen|timesince }} ago)</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Extraction jobs -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-task"></i> Extraction Jobs</h5>
+    </div>
+    <div class="card-body">
+        {% if extraction_jobs %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Case / Evidence</th>
+                            <th>Extraction Method</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for extraction in extraction_jobs %}
+                        <tr>
+                            <td><strong>#{{ extraction.imaging_job.id }}</strong></td>
+                            <td>
+                                {{ extraction.imaging_job.case_number }} / {{ extraction.imaging_job.evidence_number }}
+                            </td>
+                            <td>{{ extraction.get_extraction_method_display }}</td>
+                            <td>
+                                {% if extraction.imaging_job.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                {% elif extraction.imaging_job.status == 'in_progress' %}
+                                    <span class="badge bg-primary">In Progress</span>
+                                {% elif extraction.imaging_job.status == 'failed' %}
+                                    <span class="badge bg-danger">Failed</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ extraction.imaging_job.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if extraction.extraction_started_at %}
+                                    {{ extraction.extraction_started_at }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if extraction.extraction_completed_at %}
+                                    {{ extraction.extraction_completed_at }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if extraction.extraction_size_bytes %}
+                                    {{ extraction.extraction_size_bytes|filesizeformat }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'job_detail' extraction.imaging_job.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> No extraction jobs have been created for this device yet.
+                <a href="{% url 'job_create' %}" class="alert-link">Create a new job</a> to extract data from this device.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Raw device info (collapsible) -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <button class="btn btn-link text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#rawDeviceInfo">
+                <i class="bi bi-code-square"></i> Raw Device Information (JSON)
+            </button>
+        </h5>
+    </div>
+    <div id="rawDeviceInfo" class="collapse">
+        <div class="card-body">
+            <pre class="bg-light p-3"><code>{{ device.device_info_json|default:"{}" }}</code></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh page every 30 seconds if device is connected
+{% if device.connection_status == 'connected' or device.connection_status == 'extracting' %}
+setTimeout(function() {
+    location.reload();
+}, 30000);
+{% endif %}
+</script>
+{% endblock %}

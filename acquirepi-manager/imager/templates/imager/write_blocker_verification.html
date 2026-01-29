@@ -1,0 +1,163 @@
+{% extends 'imager/base.html' %}
+
+{% block title %}Write-Blocker Verification - Job #{{ job.id }} - acquirepi Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-shield-lock"></i> Write-Blocker Verification</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'job_detail' job.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Job
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Job #{{ job.id }} - {{ job.case_number }} / {{ job.evidence_number }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <strong>Please correct the following errors:</strong>
+                            <ul>
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <li>{{ field.label }}: {{ error }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    <!-- Write-Blocker Information -->
+                    <h5 class="mb-3">Write-Blocker Information</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                {{ form.write_blocker_used }}
+                                <label class="form-check-label" for="{{ form.write_blocker_used.id_for_label }}">
+                                    {{ form.write_blocker_used.label }}
+                                </label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.write_blocker_type.id_for_label }}" class="form-label">{{ form.write_blocker_type.label }}</label>
+                                {{ form.write_blocker_type }}
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.write_blocker_model.id_for_label }}" class="form-label">{{ form.write_blocker_model.label }} *</label>
+                                {{ form.write_blocker_model }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.write_blocker_serial.id_for_label }}" class="form-label">{{ form.write_blocker_serial.label }}</label>
+                                {{ form.write_blocker_serial }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Pre-Imaging Test -->
+                    <h5 class="mb-3">Pre-Imaging Verification Test</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                {{ form.pre_test_performed }}
+                                <label class="form-check-label" for="{{ form.pre_test_performed.id_for_label }}">
+                                    {{ form.pre_test_performed.label }}
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                {{ form.pre_test_passed }}
+                                <label class="form-check-label" for="{{ form.pre_test_passed.id_for_label }}">
+                                    {{ form.pre_test_passed.label }}
+                                </label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.pre_test_timestamp.id_for_label }}" class="form-label">{{ form.pre_test_timestamp.label }}</label>
+                                {{ form.pre_test_timestamp }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.pre_test_performed_by.id_for_label }}" class="form-label">{{ form.pre_test_performed_by.label }}</label>
+                                {{ form.pre_test_performed_by }}
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.write_operations_detected.id_for_label }}" class="form-label">{{ form.write_operations_detected.label }}</label>
+                                {{ form.write_operations_detected }}
+                                <small class="form-text text-muted">Should be 0 for a passing test</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.pre_test_method.id_for_label }}" class="form-label">{{ form.pre_test_method.label }}</label>
+                        {{ form.pre_test_method }}
+                    </div>
+
+                    <hr>
+
+                    <!-- During Imaging Verification -->
+                    <h5 class="mb-3">During Imaging Verification</h5>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.write_blocker_verified }}
+                            <label class="form-check-label" for="{{ form.write_blocker_verified.id_for_label }}">
+                                {{ form.write_blocker_verified.label }}
+                            </label>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Post-Imaging Verification -->
+                    <h5 class="mb-3">Post-Imaging Verification</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                {{ form.post_verification_performed }}
+                                <label class="form-check-label" for="{{ form.post_verification_performed.id_for_label }}">
+                                    {{ form.post_verification_performed.label }}
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                {{ form.post_verification_passed }}
+                                <label class="form-check-label" for="{{ form.post_verification_passed.id_for_label }}">
+                                    {{ form.post_verification_passed.label }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.post_verification_notes.id_for_label }}" class="form-label">{{ form.post_verification_notes.label }}</label>
+                        {{ form.post_verification_notes }}
+                    </div>
+
+                    <hr>
+
+                    <!-- Test Results -->
+                    <h5 class="mb-3">Detailed Test Results</h5>
+                    <div class="mb-3">
+                        <label for="{{ form.test_results.id_for_label }}" class="form-label">{{ form.test_results.label }}</label>
+                        {{ form.test_results }}
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'job_detail' job.id %}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Verification
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

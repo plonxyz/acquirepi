@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evidence Label - Case {{ job.case_number }}</title>
+    <style>
+        @page {
+            size: 4in 6in; /* Standard evidence label size */
+            margin: 0;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+        }
+
+        .label-container {
+            width: 4in;
+            height: 6in;
+            background: white;
+            margin: 20px auto;
+            padding: 0.25in;
+            box-sizing: border-box;
+            border: 2px solid #000;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .label-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .label-header h1 {
+            margin: 0;
+            font-size: 18pt;
+            font-weight: bold;
+        }
+
+        .label-header h2 {
+            margin: 5px 0 0 0;
+            font-size: 12pt;
+            font-weight: normal;
+        }
+
+        .label-section {
+            margin-bottom: 12px;
+            font-size: 10pt;
+        }
+
+        .label-field {
+            margin: 6px 0;
+            display: flex;
+            line-height: 1.4;
+        }
+
+        .label-field strong {
+            min-width: 100px;
+            font-weight: bold;
+        }
+
+        .qr-code-container {
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px solid #000;
+            background: #fff;
+        }
+
+        .qr-code-container img {
+            width: 150px;
+            height: 150px;
+            margin: 0 auto;
+        }
+
+        .qr-code-container p {
+            margin: 8px 0 0 0;
+            font-size: 8pt;
+            font-weight: bold;
+        }
+
+        .barcode {
+            text-align: center;
+            font-family: 'Libre Barcode 128', monospace;
+            font-size: 36pt;
+            margin: 10px 0;
+        }
+
+        .instructions {
+            font-size: 8pt;
+            border-top: 1px solid #000;
+            padding-top: 8px;
+            margin-top: 10px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 0 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+    </style>
+</head>
+<body>
+
+<div class="no-print button-container">
+    <button onclick="window.print()" class="btn">🖨️ Print Label</button>
+    <a href="{% url 'job_detail' job.id %}" class="btn btn-secondary">← Back to Job</a>
+</div>
+
+<div class="label-container">
+    <div class="label-header">
+        <h1>DIGITAL EVIDENCE</h1>
+        <h2>Forensic Imaging Lab</h2>
+    </div>
+
+    <div class="label-section">
+        <div class="label-field">
+            <strong>Case Number:</strong>
+            <span>{{ job.case_number }}</span>
+        </div>
+        <div class="label-field">
+            <strong>Evidence #:</strong>
+            <span>{{ job.evidence_number }}</span>
+        </div>
+        <div class="label-field">
+            <strong>Examiner:</strong>
+            <span>{{ job.created_by.username|default:"N/A" }}</span>
+        </div>
+        <div class="label-field">
+            <strong>Date Created:</strong>
+            <span>{{ job.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+        <div class="label-field">
+            <strong>Status:</strong>
+            <span>{{ job.get_status_display }}</span>
+        </div>
+    </div>
+
+    <div class="qr-code-container">
+        <img src="{% url 'job_qr_code' job.id %}" alt="QR Code for Job {{ job.id }}">
+        <p>SCAN FOR JOB DETAILS</p>
+    </div>
+
+    <div class="label-section">
+        <div class="label-field">
+            <strong>Job ID:</strong>
+            <span>{{ job.id }}</span>
+        </div>
+        {% if job.agent %}
+        <div class="label-field">
+            <strong>Agent:</strong>
+            <span>{{ job.agent.hostname }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="instructions">
+        <strong>INSTRUCTIONS:</strong> Scan QR code to access full chain of custody documentation,
+        hash verification, and forensic metadata. Maintain secure storage in accordance with
+        evidence handling procedures.
+    </div>
+</div>
+
+<div class="no-print" style="text-align: center; margin: 20px; color: #666; font-size: 12px;">
+    <p>💡 This label is optimized for 4" x 6" label stock.<br>
+    For best results, use a thermal label printer or standard printer with label sheets.</p>
+</div>
+
+</body>
+</html>
