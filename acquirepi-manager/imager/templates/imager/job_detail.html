@@ -3,11 +3,7 @@
 
 {% block title %}Job #{{ job.id }} - acquirepi Manager{% endblock %}
 
-{% block extra_head %}
-{% if job.status == 'queued' or job.status == 'in_progress' %}
-<meta http-equiv="refresh" content="5">
-{% endif %}
-{% endblock %}
+
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -802,11 +798,44 @@
         });
     }
 
-    // Fallback: Auto-refresh every 5 seconds for queued/in-progress jobs
+    // Fallback: Auto-refresh data every 5 seconds for queued/in-progress jobs
+    // Uses AJAX to preserve scroll position instead of full page reload
     const currentStatus = '{{ job.status }}';
     if (currentStatus === 'queued' || currentStatus === 'in_progress') {
         setInterval(function() {
-            location.reload();
+            fetch(`/api/jobs/`)
+                .then(response => response.json())
+                .then(data => {
+                    const jobData = data.jobs.find(j => j.id === jobId);
+                    if (jobData) {
+                        // Update progress
+                        document.getElementById('progressPercent').textContent = jobData.progress_percentage + '%';
+                        const progressBar = document.getElementById('progressBar');
+                        progressBar.style.width = jobData.progress_percentage + '%';
+                        progressBar.setAttribute('aria-valuenow', jobData.progress_percentage);
+
+                        // Update status badge
+                        const statusEl = document.getElementById('jobStatus');
+                        if (statusEl) {
+                            let badgeClass = 'bg-secondary';
+                            let statusText = jobData.status;
+                            switch(jobData.status) {
+                                case 'completed': badgeClass = 'bg-success'; statusText = 'Completed'; break;
+                                case 'in_progress': badgeClass = 'bg-info'; statusText = 'In Progress'; break;
+                                case 'failed': badgeClass = 'bg-danger'; statusText = 'Failed'; break;
+                                case 'queued': badgeClass = 'bg-warning'; statusText = 'Queued'; break;
+                                case 'cancelled': badgeClass = 'bg-secondary'; statusText = 'Cancelled'; break;
+                            }
+                            statusEl.innerHTML = `<span class="badge ${badgeClass}">${statusText}</span>`;
+                        }
+
+                        // Only reload page when job terminal status changes (to get full updated timestamps/results)
+                        if (jobData.status === 'completed' || jobData.status === 'failed' || jobData.status === 'cancelled') {
+                            location.reload();
+                        }
+                    }
+                })
+                .catch(err => console.log('Fallback refresh error:', err));
         }, 5000);
     }
 </script>

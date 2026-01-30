@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## v1.0.1 (January 30, 2026)
+
+### Bug Fixes
+
+**Manager:**
+
+- **Cancel button fix** - Fixed issue where cancelling a job didn't work because the agent's progress updates were overwriting the cancelled status. The progress endpoint now rejects updates for cancelled/completed jobs and returns `is_cancelled` flag to the agent.
+
+- **Log output jumping fix** - Fixed job detail page where log output would jump around during refresh. Replaced full page reload with AJAX partial updates to preserve scroll position.
+
+- **Dashboard auto-refresh** - Fixed dashboard not automatically showing new agents/jobs. Added detection for new agents and jobs in both WebSocket and polling modes, triggering page reload when new items appear.
+
+- **Jobs page auto-refresh** - Fixed WebSocket handler bug where socket handlers were defined before socket was created. Added proper polling fallback.
+
+- **Agents page auto-refresh** - Same WebSocket fix applied to agents list page.
+
+- **Dashboard API** - Added missing `total_agents` to the dashboard API response for proper stat card updates.
+
+**Agent:**
+
+- **ACT LED in standalone mode** - Fixed ACT LED to turn off when booting in standalone/airgapped mode with config stick (indicates ready state).
+
+- **LED logic in bash scripts** - Fixed inverted LED logic in `imager.sh` and `nfs-imager.sh`. Pi 5 ACT LED is active-low (1=OFF, 0=ON).
+
+- **Config stick source detection** - Fixed standalone mode detecting the config stick as a source device. Now excludes the config stick (UUID: 937C-8BC2) from source device detection.
+
+---
+
 ## v1.0.0 (January 29, 2026)
 
 ### Initial Public Release

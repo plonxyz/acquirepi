@@ -996,7 +996,18 @@ class Agent:
                     total_bytes = int(float(total_match.group(1)) * 1024**3) if total_match else None
                     speed = speed_match.group(0) if speed_match else None
 
-                    self._update_progress(job_id, percentage, acquired_bytes, total_bytes, speed)
+                    # Check if job was cancelled via progress response
+                    if self._update_progress(job_id, percentage, acquired_bytes, total_bytes, speed):
+                        logger.warning(f"Job {job_id} cancelled (detected via progress update)")
+                        self._log_job(job_id, 'warning', "Job cancelled by user - stopping imaging")
+                        self.lcd.display("Job Cancelled!", "Stopping...")
+                        process.terminate()
+                        time.sleep(2)
+                        if process.poll() is None:
+                            process.kill()
+                        self.lcd.display("Job Cancelled", "Cleanup complete")
+                        time.sleep(2)
+                        return
 
             # Wait for process to complete
             return_code = process.wait()
@@ -1030,7 +1041,7 @@ class Agent:
             self.current_job = None
 
     def _update_progress(self, job_id, percentage, acquired_bytes=None, total_bytes=None, speed=None):
-        """Update job progress."""
+        """Update job progress. Returns True if job was cancelled."""
         data = {
             'job_id': job_id,
             'progress_percentage': percentage,
@@ -1067,15 +1078,24 @@ class Agent:
         self.lcd.show_job_progress(percentage, speed_str, eta_str)
 
         try:
-            requests.post(
+            response = requests.post(
                 f"{self.manager_url}/api/jobs/{job_id}/progress/",
                 json=data,
                 timeout=5
             )
             # Also send heartbeat with current resource stats during job execution
             self.heartbeat()
+
+            # Check if job was cancelled
+            if response.status_code == 200:
+                resp_data = response.json()
+                if resp_data.get('is_cancelled', False):
+                    logger.warning(f"Job {job_id} was cancelled (detected via progress response)")
+                    return True
+            return False
         except Exception as e:
             logger.error(f"Failed to update progress: {e}")
+            return False
 
     def _perform_post_acquisition_verification(self, job_id, upload_method):
         """
@@ -1414,8 +1434,29 @@ class Agent:
             return None
 
     def _detect_source_devices(self):
-        """Detect connected source storage devices (excluding boot device)."""
+        """Detect connected source storage devices (excluding boot device and config stick)."""
         try:
+            # First, find the config stick device to exclude it
+            config_stick_device = None
+            try:
+                result = subprocess.run(
+                    ['blkid', '-U', CONFIG_STICK_UUID],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    # Got partition path like /dev/sda1, extract disk name (sda)
+                    config_partition = result.stdout.strip()
+                    # Remove partition number to get disk name (e.g., /dev/sda1 -> sda)
+                    import re
+                    match = re.match(r'/dev/([a-z]+)', config_partition)
+                    if match:
+                        config_stick_device = match.group(1)
+                        logger.debug(f"Config stick disk to exclude: {config_stick_device}")
+            except Exception as e:
+                logger.debug(f"Could not determine config stick device: {e}")
+
             # List all block devices
             result = subprocess.run(
                 ['lsblk', '-d', '-n', '-o', 'NAME,TYPE'],
@@ -1436,8 +1477,12 @@ class Agent:
                 parts = line.split()
                 if len(parts) >= 2:
                     name, dev_type = parts[0], parts[1]
-                    # Only include disk types, exclude boot device (mmcblk), loop devices, and ram
-                    if dev_type == 'disk' and not name.startswith(('mmcblk', 'loop', 'ram')):
+                    # Only include disk types, exclude boot device (mmcblk), loop devices, ram, and config stick
+                    if dev_type == 'disk' and not name.startswith(('mmcblk', 'loop', 'ram', 'zram')):
+                        # Also exclude config stick device
+                        if config_stick_device and name == config_stick_device:
+                            logger.debug(f"Excluding config stick device: {name}")
+                            continue
                         devices.append(f'/dev/{name}')
 
             return devices
@@ -2817,7 +2862,16 @@ class Agent:
                             # Report progress every 5 seconds to avoid too many API calls
                             if current_time - last_progress_report > 5:
                                 # Round to 2 decimal places to match serializer requirements
-                                self._update_progress(job_info['job_id'], round(progress, 2))
+                                # Also check if job was cancelled via progress response
+                                if self._update_progress(job_info['job_id'], round(progress, 2)):
+                                    logger.info("Job cancelled (detected via progress update), terminating iOS backup")
+                                    process.terminate()
+                                    try:
+                                        process.wait(timeout=10)
+                                    except subprocess.TimeoutExpired:
+                                        process.kill()
+                                    self._led_stop_blink()
+                                    return False
                                 last_progress_report = current_time
                         except (ValueError, IndexError):
                             pass
@@ -3076,6 +3130,11 @@ class Agent:
     def run_standalone_mode(self):
         """Run in standalone mode using USB config stick."""
         logger.info("Starting standalone mode")
+
+        # Turn off ACT LED at boot in airgapped mode (indicates ready state)
+        self._led_control(1)  # 1 = OFF (active-low on Pi 5)
+        logger.debug("ACT LED turned off for standalone mode")
+
         self.lcd.display("Standalone Mode", "Ready")
 
         try:

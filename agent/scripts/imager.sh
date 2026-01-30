@@ -31,23 +31,27 @@ log() {
 }
 
 led_control() {
+    # Pi 5 ACT LED is active-low: 1=OFF, 0=ON
+    # Disable trigger first to prevent it from overriding brightness
+    echo "none" | sudo tee /sys/class/leds/ACT/trigger > /dev/null 2>&1
     echo "$1" | sudo tee $LED_PATH > /dev/null
 }
 
 blink_led() {
     local interval=$1
     while true; do
-        led_control 1
+        led_control 0  # ON (active-low)
         sleep $interval
-        led_control 0
+        led_control 1  # OFF (active-low)
         sleep $interval
     done
 }
 
 static_led_ok() {
-    led_control 1
+    # Solid ON for 5 seconds then OFF
+    led_control 0  # ON (active-low)
     sleep 5
-    led_control 0
+    led_control 1  # OFF (active-low)
 }
 
 acquire_image() {

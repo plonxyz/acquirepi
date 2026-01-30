@@ -181,6 +181,7 @@ def dashboard_api(request):
             'online_agents': online_count,
             'pending_agents': pending_count,
             'active_jobs': all_jobs.filter(status='in_progress').count(),
+            'total_agents': agents.count(),
         },
         'agents': agents_data[:10],  # First 10 for dashboard
         'jobs': jobs_data,
@@ -754,6 +755,8 @@ class AgentViewSet(viewsets.ModelViewSet):
             elif created:
                 # New agent registered, send webhook notification
                 WebhookNotifier.notify_agent_registered(agent)
+                # Broadcast to dashboard so it can refresh
+                agent._broadcast_agent_update()
 
             return Response({
                 'agent_id': agent.id,
@@ -1046,6 +1049,15 @@ class ImagingJobViewSet(viewsets.ModelViewSet):
     def progress(self, request, pk=None):
         """Update job progress."""
         job = self.get_object()
+
+        # Check if job has been cancelled or completed - don't allow further updates
+        if job.status in ['cancelled', 'completed', 'failed']:
+            return Response({
+                'status': 'rejected',
+                'reason': f'Job is {job.status}',
+                'is_cancelled': job.status == 'cancelled'
+            })
+
         serializer = JobProgressSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -1057,8 +1069,8 @@ class ImagingJobViewSet(viewsets.ModelViewSet):
                 speed=data.get('transfer_speed')
             )
 
-            # Update status if provided
-            if 'status' in data:
+            # Update status if provided, but only if job hasn't been cancelled
+            if 'status' in data and job.status not in ['cancelled', 'completed', 'failed']:
                 job.status = data['status']
                 job.save()
 
@@ -1079,7 +1091,12 @@ class ImagingJobViewSet(viewsets.ModelViewSet):
             # Broadcast to WebSocket
             self._broadcast_job_update(job)
 
-            return Response({'status': 'updated'})
+            # Re-fetch job to check if it was cancelled during this update
+            job.refresh_from_db()
+            return Response({
+                'status': 'updated',
+                'is_cancelled': job.status == 'cancelled'
+            })
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
