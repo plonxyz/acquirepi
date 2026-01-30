@@ -2837,12 +2837,43 @@ class Agent:
             # Monitor backup progress
             import time
             import re
+            import select
             last_progress_report = 0
             last_device_check = time.time()
             last_mount_check = time.time()
-            for line in iter(process.stdout.readline, ''):
-                if not line:
-                    break
+            last_keepalive = time.time()
+            last_known_progress = 0.0
+            KEEPALIVE_INTERVAL = 30  # Send keepalive every 30 seconds even without output
+
+            while True:
+                # Use select with timeout to avoid blocking indefinitely on readline
+                # This allows us to send keepalives even when pymobiledevice3 is silent
+                ready, _, _ = select.select([process.stdout], [], [], KEEPALIVE_INTERVAL)
+
+                if ready:
+                    line = process.stdout.readline()
+                    if not line:
+                        break  # EOF - process finished
+                else:
+                    # Timeout - no output from pymobiledevice3, send keepalive
+                    current_time = time.time()
+                    if current_time - last_keepalive >= KEEPALIVE_INTERVAL:
+                        logger.debug(f"Sending keepalive (no output for {KEEPALIVE_INTERVAL}s)")
+                        # Send progress update with last known progress to keep agent alive
+                        try:
+                            if self._update_progress(job_info['job_id'], round(last_known_progress, 2)):
+                                logger.info("Job cancelled (detected via keepalive), terminating iOS backup")
+                                process.terminate()
+                                try:
+                                    process.wait(timeout=10)
+                                except subprocess.TimeoutExpired:
+                                    process.kill()
+                                self._led_stop_blink()
+                                return False
+                        except Exception as e:
+                            logger.debug(f"Keepalive progress update failed: {e}")
+                        last_keepalive = current_time
+                    continue  # Go back to waiting for output
 
                 line = line.strip()
                 if line:
@@ -2858,6 +2889,7 @@ class Agent:
                     if progress_match:
                         try:
                             progress = float(progress_match.group(1))
+                            last_known_progress = progress  # Store for keepalive updates
                             current_time = time.time()
                             # Report progress every 5 seconds to avoid too many API calls
                             if current_time - last_progress_report > 5:
@@ -2873,6 +2905,7 @@ class Agent:
                                     self._led_stop_blink()
                                     return False
                                 last_progress_report = current_time
+                                last_keepalive = current_time  # Reset keepalive timer
                         except (ValueError, IndexError):
                             pass
 

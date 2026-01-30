@@ -585,7 +585,9 @@ class Agent(models.Model):
         """Mark agent as online."""
         if self.is_approved:
             old_status = self.status
-            self.status = 'online'
+            # Don't overwrite 'imaging' status - agent is still working on a job
+            if self.status != 'imaging':
+                self.status = 'online'
             self.last_seen = timezone.now()
             self.save()
 
