@@ -48,6 +48,16 @@ INSTALL_AGENT=false
 INTERACTIVE=true
 SKIP_SYSTEM_UPDATE=false
 
+# Database configuration
+USE_POSTGRESQL=false
+USE_EXTERNAL_DB=false
+DB_HOST="localhost"
+DB_PORT="5432"
+DB_NAME="acquirepi_manager"
+DB_USER="acquirepi"
+DB_PASSWORD=""
+ADMIN_PASSWORD=""
+
 # System info
 OS_ID=""
 OS_VERSION=""
@@ -207,7 +217,7 @@ show_menu() {
 
     echo -e "${BOLD}What would you like to install?${NC}"
     echo ""
-    echo "  1) Manager Only     - Central web application (Django + PostgreSQL)"
+    echo "  1) Manager Only     - Central web application"
     echo "  2) Agent Only       - Raspberry Pi imaging client"
     echo "  3) Complete System  - Both Manager and Agent (for testing/single machine)"
     echo "  4) Exit"
@@ -239,12 +249,115 @@ show_menu() {
     esac
 }
 
+choose_database() {
+    echo ""
+    echo -e "${BOLD}Which database would you like to use?${NC}"
+    echo ""
+    echo "  1) SQLite              - Simple, no extra setup (recommended for testing)"
+    echo "  2) PostgreSQL (local)  - Auto-configured local PostgreSQL (recommended for production)"
+    echo "  3) PostgreSQL (remote) - Connect to an existing external PostgreSQL server"
+    echo ""
+    read -p "Enter your choice [1-3]: " db_choice
+
+    case $db_choice in
+        1)
+            USE_POSTGRESQL=false
+            USE_EXTERNAL_DB=false
+            log_info "Using SQLite database"
+            ;;
+        2)
+            USE_POSTGRESQL=true
+            USE_EXTERNAL_DB=false
+            DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+            log_info "Using local PostgreSQL database"
+            ;;
+        3)
+            USE_POSTGRESQL=true
+            USE_EXTERNAL_DB=true
+            configure_external_database
+            ;;
+        *)
+            log_error "Invalid choice"
+            sleep 2
+            choose_database
+            ;;
+    esac
+}
+
+configure_external_database() {
+    echo ""
+    echo -e "${BOLD}External PostgreSQL Configuration${NC}"
+    echo ""
+
+    # Host
+    read -p "Database host [localhost]: " input_host
+    DB_HOST="${input_host:-localhost}"
+
+    # Port
+    read -p "Database port [5432]: " input_port
+    DB_PORT="${input_port:-5432}"
+
+    # Database name
+    read -p "Database name [acquirepi_manager]: " input_name
+    DB_NAME="${input_name:-acquirepi_manager}"
+
+    # Username
+    read -p "Database user [acquirepi]: " input_user
+    DB_USER="${input_user:-acquirepi}"
+
+    # Password
+    read -s -p "Database password: " input_password
+    echo ""
+    DB_PASSWORD="$input_password"
+
+    if [ -z "$DB_PASSWORD" ]; then
+        log_error "Password cannot be empty"
+        configure_external_database
+        return
+    fi
+
+    # Test connection
+    echo ""
+    log_info "Testing database connection..."
+    if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
+        log_success "Database connection successful"
+    else
+        log_warning "Could not connect to database. Please verify:"
+        echo "  - The database server is running and accessible"
+        echo "  - The database '$DB_NAME' exists"
+        echo "  - The user '$DB_USER' has access to the database"
+        echo ""
+        read -p "Continue anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            configure_external_database
+            return
+        fi
+    fi
+
+    log_info "Using external PostgreSQL: $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
+}
+
 confirm_installation() {
     echo ""
     log_step "Installation Summary"
     echo ""
     echo "  Install Manager: $(if $INSTALL_MANAGER; then echo -e "${GREEN}Yes${NC}"; else echo -e "${RED}No${NC}"; fi)"
     echo "  Install Agent:   $(if $INSTALL_AGENT; then echo -e "${GREEN}Yes${NC}"; else echo -e "${RED}No${NC}"; fi)"
+    if $INSTALL_MANAGER; then
+        if $USE_POSTGRESQL; then
+            if $USE_EXTERNAL_DB; then
+                echo -e "  Database:        ${GREEN}PostgreSQL (external)${NC}"
+                echo "  DB Server:       $DB_HOST:$DB_PORT"
+                echo "  DB Name:         $DB_NAME"
+                echo "  DB User:         $DB_USER"
+            else
+                echo -e "  Database:        ${GREEN}PostgreSQL (local)${NC}"
+            fi
+        else
+            echo -e "  Database:        ${YELLOW}SQLite${NC}"
+        fi
+    fi
     echo ""
     echo "  Manager Path: $MANAGER_DIR"
     echo "  Agent Path:   $AGENT_DIR"
@@ -281,25 +394,28 @@ install_manager() {
         python3-pip \
         python3-venv \
         python3-dev \
-        postgresql \
-        postgresql-contrib \
         redis-server \
         nginx \
         git \
         curl \
         rsync \
         build-essential \
-        libpq-dev \
         avahi-daemon \
         avahi-utils \
         libnss-mdns \
         supervisor
+
+    if $USE_POSTGRESQL; then
+        apt-get install -y -qq postgresql postgresql-contrib libpq-dev
+    fi
     log_success "Dependencies installed"
 
     # Enable services
     log_step "[3/10] Enabling system services..."
-    systemctl enable postgresql --quiet
-    systemctl start postgresql
+    if $USE_POSTGRESQL; then
+        systemctl enable postgresql --quiet
+        systemctl start postgresql
+    fi
     systemctl enable redis-server --quiet
     systemctl start redis-server
     systemctl enable avahi-daemon --quiet
@@ -343,14 +459,40 @@ install_manager() {
     log_success "Virtual environment created"
 
     # Setup database
-    log_step "[6/10] Configuring PostgreSQL database..."
-    sudo -u postgres psql -c "CREATE DATABASE forensics;" 2>/dev/null || true
-    sudo -u postgres psql -c "CREATE USER acquirepi WITH PASSWORD 'forensics';" 2>/dev/null || true
-    sudo -u postgres psql -c "ALTER ROLE acquirepi SET client_encoding TO 'utf8';" 2>/dev/null || true
-    sudo -u postgres psql -c "ALTER ROLE acquirepi SET default_transaction_isolation TO 'read committed';" 2>/dev/null || true
-    sudo -u postgres psql -c "ALTER ROLE acquirepi SET timezone TO 'UTC';" 2>/dev/null || true
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE forensics TO acquirepi;" 2>/dev/null || true
-    log_success "Database configured"
+    log_step "[6/10] Configuring database..."
+    if $USE_POSTGRESQL; then
+        if $USE_EXTERNAL_DB; then
+            # External PostgreSQL - just set environment variables
+            export DATABASE_ENGINE="django.db.backends.postgresql"
+            export DATABASE_NAME="$DB_NAME"
+            export DATABASE_USER="$DB_USER"
+            export DATABASE_PASSWORD="$DB_PASSWORD"
+            export DATABASE_HOST="$DB_HOST"
+            export DATABASE_PORT="$DB_PORT"
+            log_success "External PostgreSQL configured ($DB_HOST:$DB_PORT/$DB_NAME)"
+        else
+            # Local PostgreSQL - create database and user
+            sudo -u postgres psql -c "CREATE DATABASE acquirepi_manager;" 2>/dev/null || true
+            sudo -u postgres psql -c "CREATE USER acquirepi WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || \
+                sudo -u postgres psql -c "ALTER USER acquirepi WITH PASSWORD '$DB_PASSWORD';"
+            sudo -u postgres psql -c "ALTER ROLE acquirepi SET client_encoding TO 'utf8';" 2>/dev/null || true
+            sudo -u postgres psql -c "ALTER ROLE acquirepi SET default_transaction_isolation TO 'read committed';" 2>/dev/null || true
+            sudo -u postgres psql -c "ALTER ROLE acquirepi SET timezone TO 'UTC';" 2>/dev/null || true
+            sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE acquirepi_manager TO acquirepi;" 2>/dev/null || true
+            sudo -u postgres psql -d acquirepi_manager -c "GRANT ALL ON SCHEMA public TO acquirepi;" 2>/dev/null || true
+            sudo -u postgres psql -d acquirepi_manager -c "ALTER DATABASE acquirepi_manager OWNER TO acquirepi;" 2>/dev/null || true
+            # Export env vars for migrations
+            export DATABASE_ENGINE="django.db.backends.postgresql"
+            export DATABASE_NAME="acquirepi_manager"
+            export DATABASE_USER="acquirepi"
+            export DATABASE_PASSWORD="$DB_PASSWORD"
+            export DATABASE_HOST="localhost"
+            export DATABASE_PORT="5432"
+            log_success "Local PostgreSQL database configured"
+        fi
+    else
+        log_success "Using SQLite database (no setup needed)"
+    fi
 
     # Run migrations
     log_step "[7/10] Running database migrations..."
@@ -364,17 +506,33 @@ install_manager() {
 
     # Create systemd service
     log_step "[9/10] Installing systemd service..."
-    cat > /etc/systemd/system/acquirepi-manager.service << EOF
+    if $USE_POSTGRESQL; then
+        # Determine service dependencies based on local vs external DB
+        if $USE_EXTERNAL_DB; then
+            DB_AFTER="network-online.target redis.service"
+            DB_REQUIRES="redis.service"
+        else
+            DB_AFTER="network.target postgresql.service redis.service"
+            DB_REQUIRES="postgresql.service redis.service"
+        fi
+        cat > /etc/systemd/system/acquirepi-manager.service << EOF
 [Unit]
 Description=acquirepi Manager ASGI Server
-After=network.target postgresql.service redis.service
-Requires=postgresql.service redis.service
+After=$DB_AFTER
+Requires=$DB_REQUIRES
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=$MANAGER_DIR
 Environment="PATH=$MANAGER_DIR/venv/bin"
+Environment="DEBUG=False"
+Environment="DATABASE_ENGINE=django.db.backends.postgresql"
+Environment="DATABASE_NAME=$DB_NAME"
+Environment="DATABASE_USER=$DB_USER"
+Environment="DATABASE_PASSWORD=$DB_PASSWORD"
+Environment="DATABASE_HOST=$DB_HOST"
+Environment="DATABASE_PORT=$DB_PORT"
 ExecStart=$MANAGER_DIR/venv/bin/daphne -b 0.0.0.0 -p 8000 manager.asgi:application
 Restart=always
 RestartSec=10
@@ -382,9 +540,31 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
+    else
+        cat > /etc/systemd/system/acquirepi-manager.service << EOF
+[Unit]
+Description=acquirepi Manager ASGI Server
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$MANAGER_DIR
+Environment="PATH=$MANAGER_DIR/venv/bin"
+Environment="DEBUG=False"
+ExecStart=$MANAGER_DIR/venv/bin/daphne -b 0.0.0.0 -p 8000 manager.asgi:application
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
 
     # mDNS service
-    cat > /etc/systemd/system/acquirepi-mdns.service << EOF
+    if $USE_POSTGRESQL; then
+        cat > /etc/systemd/system/acquirepi-mdns.service << EOF
 [Unit]
 Description=acquirepi mDNS Service Advertisement
 After=network.target avahi-daemon.service acquirepi-manager.service
@@ -395,6 +575,13 @@ Type=simple
 User=root
 WorkingDirectory=$MANAGER_DIR
 Environment="PATH=$MANAGER_DIR/venv/bin"
+Environment="DEBUG=False"
+Environment="DATABASE_ENGINE=django.db.backends.postgresql"
+Environment="DATABASE_NAME=$DB_NAME"
+Environment="DATABASE_USER=$DB_USER"
+Environment="DATABASE_PASSWORD=$DB_PASSWORD"
+Environment="DATABASE_HOST=$DB_HOST"
+Environment="DATABASE_PORT=$DB_PORT"
 ExecStart=$MANAGER_DIR/venv/bin/python manage.py mdns_advertise
 Restart=always
 RestartSec=10
@@ -402,6 +589,27 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
+    else
+        cat > /etc/systemd/system/acquirepi-mdns.service << EOF
+[Unit]
+Description=acquirepi mDNS Service Advertisement
+After=network.target avahi-daemon.service acquirepi-manager.service
+Requires=avahi-daemon.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$MANAGER_DIR
+Environment="PATH=$MANAGER_DIR/venv/bin"
+Environment="DEBUG=False"
+ExecStart=$MANAGER_DIR/venv/bin/python manage.py mdns_advertise
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
 
     systemctl daemon-reload
     systemctl enable acquirepi-manager --quiet
@@ -412,9 +620,11 @@ EOF
 
     # Create superuser
     log_step "[10/10] Creating admin user..."
-    echo ""
-    echo -e "${YELLOW}Please create an admin user for the web interface:${NC}"
-    python manage.py createsuperuser
+    ADMIN_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    export DJANGO_SUPERUSER_USERNAME="admin"
+    export DJANGO_SUPERUSER_EMAIL="admin@localhost"
+    export DJANGO_SUPERUSER_PASSWORD="$ADMIN_PASSWORD"
+    python manage.py createsuperuser --noinput 2>/dev/null || true
 
     log_success "Manager installation complete!"
     echo ""
@@ -573,9 +783,25 @@ show_next_steps() {
     if $INSTALL_MANAGER; then
         echo -e "${BOLD}Manager:${NC}"
         echo "  1. Access web interface: http://$(hostname -I | awk '{print $1}'):8000"
-        echo "  2. Login with the admin credentials you created"
+        echo "  2. Login with the admin credentials below"
         echo "  3. Navigate to Agents section and approve pending agents"
         echo ""
+        echo -e "${BOLD}Admin Login (save these!):${NC}"
+        echo "  Username: admin"
+        echo "  Password: $ADMIN_PASSWORD"
+        echo ""
+        if $USE_POSTGRESQL; then
+            echo -e "${BOLD}Database Credentials (save these!):${NC}"
+            if $USE_EXTERNAL_DB; then
+                echo "  Host:     $DB_HOST:$DB_PORT"
+            fi
+            echo "  Database: $DB_NAME"
+            echo "  User:     $DB_USER"
+            if ! $USE_EXTERNAL_DB; then
+                echo "  Password: $DB_PASSWORD"
+            fi
+            echo ""
+        fi
     fi
 
     if $INSTALL_AGENT; then
@@ -632,6 +858,15 @@ main() {
                 INTERACTIVE=false
                 shift
                 ;;
+            --sqlite)
+                USE_POSTGRESQL=false
+                shift
+                ;;
+            --postgresql)
+                USE_POSTGRESQL=true
+                DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+                shift
+                ;;
             --skip-update)
                 SKIP_SYSTEM_UPDATE=true
                 shift
@@ -643,6 +878,8 @@ main() {
                 echo "  --manager      Install manager only"
                 echo "  --agent        Install agent only"
                 echo "  --all          Install both manager and agent"
+                echo "  --sqlite       Use SQLite database (default)"
+                echo "  --postgresql   Use PostgreSQL database (recommended for production)"
                 echo "  --skip-update  Skip system package update"
                 echo "  --help         Show this help message"
                 echo ""
@@ -658,6 +895,11 @@ main() {
     # Show banner
     if $INTERACTIVE; then
         show_menu
+    fi
+
+    # Choose database if installing manager in interactive mode
+    if $INTERACTIVE && $INSTALL_MANAGER; then
+        choose_database
     fi
 
     # Detect system

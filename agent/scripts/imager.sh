@@ -55,8 +55,47 @@ static_led_ok() {
 }
 
 acquire_image() {
+    # Initialize hash storage
+    CAPTURED_MD5_FILE="/tmp/captured_md5_$$.txt"
+    CAPTURED_SHA1_FILE="/tmp/captured_sha1_$$.txt"
+    CAPTURED_SHA256_FILE="/tmp/captured_sha256_$$.txt"
+    > "$CAPTURED_MD5_FILE"
+    > "$CAPTURED_SHA1_FILE"
+    > "$CAPTURED_SHA256_FILE"
+
     ewfacquire -C "$CASE_NUMBER" -E "$EVIDENCE_NUMBER" -D "$DESCRIPTION" \
-               -e "$EXAMINER_NAME" -d sha1 -d sha256 -u -t "$1" -S "$SEGMENT_SIZE" "$DEVICE" 2>&1 | tee -a $LOGFILE
+               -e "$EXAMINER_NAME" -d sha1 -d sha256 -u -t "$1" -S "$SEGMENT_SIZE" "$DEVICE" 2>&1 | \
+    while IFS= read -r line
+    do
+        echo "$line" >> "$LOGFILE"
+
+        # Capture MD5 hash from ewfacquire output
+        if [[ $line =~ MD5\ hash\ calculated\ over\ data:[[:space:]]*([a-f0-9]+) ]]; then
+            echo "${BASH_REMATCH[1]}" > "$CAPTURED_MD5_FILE"
+            log "Captured MD5 hash: ${BASH_REMATCH[1]}"
+        fi
+
+        # Capture SHA1 hash from ewfacquire output
+        if [[ $line =~ SHA1\ hash\ calculated\ over\ data:[[:space:]]*([a-f0-9]+) ]]; then
+            echo "${BASH_REMATCH[1]}" > "$CAPTURED_SHA1_FILE"
+            log "Captured SHA1 hash: ${BASH_REMATCH[1]}"
+        fi
+
+        # Capture SHA256 hash from ewfacquire output
+        if [[ $line =~ SHA256\ hash\ calculated\ over\ data:[[:space:]]*([a-f0-9]+) ]]; then
+            echo "${BASH_REMATCH[1]}" > "$CAPTURED_SHA256_FILE"
+            log "Captured SHA256 hash: ${BASH_REMATCH[1]}"
+        fi
+
+        # Update LCD with progress if available
+        if [[ $line =~ Status:\ at\ ([0-9]+)% ]]; then
+            acquired_gb=$(echo "$line" | grep -oP 'acquired \K[0-9.]+ GiB' || true)
+            total_gb=$(echo "$line" | grep -oP 'of total \K[0-9.]+ GiB' || true)
+            if [ -n "$acquired_gb" ] && [ -n "$total_gb" ]; then
+                lcd_write "ACQUIRE DISKMODE\n${acquired_gb}/${total_gb}" true
+            fi
+        fi
+    done
 }
 
 lcd_write() {
@@ -113,21 +152,69 @@ main() {
         # Create completion file for post-acquisition verification
         COMPLETION_FILE="/tmp/imaging_completion.json"
         OUTPUT_PATH="${DESTINATION}.E01"
-        
+
         # Get image size if file exists
         IMAGE_SIZE=0
         if [ -f "$OUTPUT_PATH" ]; then
             IMAGE_SIZE=$(stat -c %s "$OUTPUT_PATH" 2>/dev/null || echo 0)
         fi
-        
+
+        # Read captured hashes from temp files
+        CAPTURED_MD5=""
+        CAPTURED_SHA1=""
+        CAPTURED_SHA256=""
+        if [ -f "/tmp/captured_md5_$$.txt" ]; then
+            CAPTURED_MD5=$(cat "/tmp/captured_md5_$$.txt")
+            rm -f "/tmp/captured_md5_$$.txt"
+            log "Using captured MD5: $CAPTURED_MD5"
+        fi
+        if [ -f "/tmp/captured_sha1_$$.txt" ]; then
+            CAPTURED_SHA1=$(cat "/tmp/captured_sha1_$$.txt")
+            rm -f "/tmp/captured_sha1_$$.txt"
+            log "Using captured SHA1: $CAPTURED_SHA1"
+        fi
+        if [ -f "/tmp/captured_sha256_$$.txt" ]; then
+            CAPTURED_SHA256=$(cat "/tmp/captured_sha256_$$.txt")
+            rm -f "/tmp/captured_sha256_$$.txt"
+            log "Using captured SHA256: $CAPTURED_SHA256"
+        fi
+
+        # Build JSON completion data
         cat > "$COMPLETION_FILE" <<JSON_EOF
 {
     "output_path": "${OUTPUT_PATH}",
     "image_size": ${IMAGE_SIZE},
     "upload_method": "disk"
-}
 JSON_EOF
+
+        # Add hashes if captured
+        if [ -n "$CAPTURED_MD5" ]; then
+            cat >> "$COMPLETION_FILE" <<JSON_EOF
+,
+    "source_md5": "$CAPTURED_MD5",
+    "image_md5": "$CAPTURED_MD5"
+JSON_EOF
+        fi
+        if [ -n "$CAPTURED_SHA1" ]; then
+            cat >> "$COMPLETION_FILE" <<JSON_EOF
+,
+    "source_sha1": "$CAPTURED_SHA1",
+    "image_sha1": "$CAPTURED_SHA1"
+JSON_EOF
+        fi
+        if [ -n "$CAPTURED_SHA256" ]; then
+            cat >> "$COMPLETION_FILE" <<JSON_EOF
+,
+    "source_sha256": "$CAPTURED_SHA256",
+    "image_sha256": "$CAPTURED_SHA256"
+JSON_EOF
+        fi
+
+        # Close JSON
+        echo "}" >> "$COMPLETION_FILE"
+
         log "Created completion file: $COMPLETION_FILE"
+        log "Hashes - MD5: $CAPTURED_MD5, SHA1: $CAPTURED_SHA1, SHA256: $CAPTURED_SHA256"
         
         echo "DONE"
     else

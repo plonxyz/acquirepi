@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## v1.0.2 (January 31, 2026)
+
+### Bug Fixes
+
+**Installer:**
+
+- **PostgreSQL password fix** - Fixed issue where PostgreSQL user password was not set when the user already existed from a previous installation. Now uses `ALTER USER` as fallback when `CREATE USER` fails.
+
+- **PostgreSQL 15+ compatibility** - Added schema permissions (`GRANT ALL ON SCHEMA public`) and database ownership for PostgreSQL 15+ which restricts public schema access by default.
+
+- **Admin user creation** - Fixed superuser creation failing in non-interactive mode. Now auto-generates admin credentials with secure random password and displays them at installation completion.
+
+**Agent:**
+
+- **Disk imager hash capture** - Fixed disk-to-disk imaging not capturing or reporting hashes. Now captures MD5, SHA1, and SHA256 from ewfacquire output, matching NFS imager behavior. Hashes are included in job completion data and displayed in the manager UI.
+
+### New Features
+
+**Installer:**
+
+- **External PostgreSQL support** - Added option to connect to an external/remote PostgreSQL server. Installer now offers three database choices:
+  1. SQLite (simple, for testing)
+  2. PostgreSQL (local) - auto-configured
+  3. PostgreSQL (remote) - prompts for host, port, database, user, password with connection testing
+
+---
+
 ## v1.0.1 (January 30, 2026)
 
 ### Bug Fixes
