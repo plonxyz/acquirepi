@@ -13,7 +13,7 @@
 
 ## Disclaimer
 
-This software is provided as-is for professional use by trained forensic practitioners. Users are solely responsible for validating its suitability for their specific forensic requirements. Always verify hash values and forensic artifacts independently before relying on them for legal proceedings. The authors assume no liability for evidence challenges or legal consequences arising from use of this software. See [LICENSE](https://github.com/plonxyz/acquirepi/blob/main/LICENSE) for full terms.
+This software is provided as-is for professional use by trained forensic practitioners. Users are solely responsible for validating its suitability for their specific forensic requirements. Always verify hash values and forensic artifacts independently before relying on them for legal proceedings. The author assumes no liability for evidence challenges or legal consequences arising from use of this software. See [LICENSE](https://github.com/plonxyz/acquirepi/blob/main/LICENSE) for full terms.
 
 ---
 
@@ -21,12 +21,12 @@ This software is provided as-is for professional use by trained forensic practit
 
 | Feature | Description |
 |---------|-------------|
-| **Disk Imaging** | E01 format with MD5 + SHA1 + SHA256 simultaneous hashing |
+| **Disk Imaging** | E01 format with MD5 + SHA256 simultaneous hashing |
 | **iOS Extraction** | Logical backup via pymobiledevice3 |
 | **Airgapped Mode** | Standalone operation via USB config stick (no network required) |
 | **Chain of Custody** | Immutable audit logs with SHA256 hash chains |
 | **Real-time Dashboard** | WebSocket-powered monitoring |
-| **Integrity Monitoring** | Periodic tamper detection with webhook alerts |
+| **Integrity Monitoring** | Periodic tamper detection   |
 
 
 ---
@@ -190,7 +190,7 @@ system:
     Password: secretpass
 
   # Optional: Mobile extraction
-  extraction_method: logical   # logical or advanced_logical
+  extraction_method: logical   
   backup_encrypted: false
   backup_password: ""
 ```
