@@ -84,12 +84,11 @@ rm -rf $VENV_DIR
 
 # Remove udev rules
 log_info "Removing USB udev rules..."
-rm -f /etc/udev/rules.d/51-android.rules
 rm -f /etc/udev/rules.d/39-usbmuxd.rules
 rm -f /etc/udev/rules.d/99-automount.rules
 udevadm control --reload-rules
 
 log_success "Uninstall complete"
 echo
-echo "System dependencies (Python, ADB, libimobiledevice) were left installed."
+echo "System dependencies (Python, libimobiledevice) were left installed."
 echo "Remove them manually if desired."
