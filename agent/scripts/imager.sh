@@ -67,6 +67,7 @@ acquire_image() {
                -e "$EXAMINER_NAME" -d sha1 -d sha256 -u -t "$1" -S "$SEGMENT_SIZE" "$DEVICE" 2>&1 | \
     while IFS= read -r line
     do
+        echo "$line"    
         echo "$line" >> "$LOGFILE"
 
         # Capture MD5 hash from ewfacquire output
