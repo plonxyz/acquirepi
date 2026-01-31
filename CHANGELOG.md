@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 
 **Agent:**
 
-- **Disk imager hash capture** - Fixed disk-to-disk imaging not capturing or reporting hashes. Now captures MD5, SHA1, and SHA256 from ewfacquire output, matching NFS imager behavior. Hashes are included in job completion data and displayed in the manager UI.
+- **Disk imager hash capture** - Fixed disk-to-disk imaging not capturing or reporting hashes. Now captures MD5 and SHA256 from ewfacquire output, matching NFS imager behavior. Hashes are included in job completion data and displayed in the manager UI.
 
 ### New Features
 
