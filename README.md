@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| **Version** | 1.0.2 |
-| **Release** | January 31, 2026 |
+| **Version** | 1.0.0 |
+| **Release** | January 29, 2026 |
 | **Platform** | Raspberry Pi / Linux |
 | **License** | GPL v3 |
 
@@ -21,8 +21,9 @@ This software is provided as-is for professional use by trained forensic practit
 
 | Feature | Description |
 |---------|-------------|
-| **Disk Imaging** | E01 format with MD5 + SHA256 simultaneous hashing |
+| **Disk Imaging** | E01 format with MD5 + SHA1 + SHA256 simultaneous hashing |
 | **iOS Extraction** | Logical backup via pymobiledevice3 |
+| **Airgapped Mode** | Standalone operation via USB config stick (no network required) |
 | **Chain of Custody** | Immutable audit logs with SHA256 hash chains |
 | **Real-time Dashboard** | WebSocket-powered monitoring |
 | **Integrity Monitoring** | Periodic tamper detection with webhook alerts |
@@ -148,9 +149,71 @@ sudo ./install-acquirepi.sh --agent
 sudo ./install-acquirepi.sh --all
 ```
 
-### Airgapped Operation
+### Airgapped / Standalone Operation
 
-Use USB config stick for offline imaging without network connectivity.
+For environments without network connectivity, agents can operate in standalone mode using a USB config stick.
+
+#### How It Works
+
+1. **Create Config Stick** in the Manager web UI (Tools → Config Stick Creator)
+2. **Copy `Imager_config.yaml`** to a FAT32-formatted USB drive (UUID: `937C-8BC2`)
+3. **Insert USB stick** into the agent Pi before booting
+4. **Agent detects config stick** and enters standalone mode automatically
+5. **Connect source device** and destination disk
+6. **Imaging runs automatically** using config from USB stick
+7. **Remove config stick** when complete to exit standalone mode
+
+#### Config Stick YAML Structure
+
+```yaml
+imager-config:
+  base_path: /home/pi
+  image_name: evidence_001
+  case_number: CASE-2026-001
+  evidence_number: EV-001
+  examiner_name: John Doe
+  description: Disk acquisition
+
+system:
+  upload_method: disk          # disk or nfs
+  extraction_type: disk        # disk or mobile
+
+  # Optional: NFS upload
+  nfs-config:
+    server: 192.168.1.100
+    share: /exports/forensics
+    mount_point: /mnt/nfs-share
+
+  # Optional: WiFi (for hybrid mode)
+  network-config:
+    SSID: ForensicLab
+    Password: secretpass
+
+  # Optional: Mobile extraction
+  extraction_method: logical   # logical or advanced_logical
+  backup_encrypted: false
+  backup_password: ""
+```
+
+#### LED Indicators (Standalone Mode)
+
+| LED State | Meaning |
+|-----------|---------|
+| ACT LED OFF | Ready, waiting for devices |
+| ACT LED BLINKING | Imaging in progress |
+| ACT LED SOLID (5s) | Imaging complete |
+
+#### Creating the Config Stick
+
+**Option 1: Web UI**
+- Navigate to Tools → Config Stick Creator
+- Fill in case details and download `Imager_config.yaml`
+- Copy to USB stick
+
+**Option 2: Manual**
+- Format USB drive as FAT32
+- Set volume UUID to `937C-8BC2` (or modify `CONFIG_STICK_UUID` in agent)
+- Create `Imager_config.yaml` with structure above
 
 ---
 
