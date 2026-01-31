@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| **Version** | 1.0.0 |
-| **Release** | January 29, 2026 |
+| **Version** | 1.0.2 |
+| **Release** | January 31, 2026 |
 | **Platform** | Raspberry Pi / Linux |
 | **License** | GPL v3 |
 
@@ -21,7 +21,7 @@ This software is provided as-is for professional use by trained forensic practit
 
 | Feature | Description |
 |---------|-------------|
-| **Disk Imaging** | E01 format with MD5 + SHA1 + SHA256 simultaneous hashing |
+| **Disk Imaging** | E01 format with MD5 + SHA256 simultaneous hashing |
 | **iOS Extraction** | Logical backup via pymobiledevice3 |
 | **Chain of Custody** | Immutable audit logs with SHA256 hash chains |
 | **Real-time Dashboard** | WebSocket-powered monitoring |
