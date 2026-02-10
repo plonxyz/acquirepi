@@ -368,5 +368,6 @@ Developed by [plonxyz](https://x.com/plonxyz)
 GPL v3 License - See [LICENSE](https://github.com/plonxyz/acquirepi/blob/main/LICENSE) for details.
 
 ---
+This is a personal project. Not affiliated with my employer.
 
 *acquirepi v1.0.0 - January 29, 2026*
